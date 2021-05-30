@@ -1,6 +1,6 @@
 #include <crypto.h>
 
-int main(){
+static int test_skcipher(void){
   struct crypto_skcipher *tfm = NULL;
   struct skcipher_request *req = NULL;
   struct scatterlist sg;
