@@ -1,6 +1,7 @@
 #ifndef sha256_h
 #define sha256_h
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -37,3 +38,4 @@ void sha256 (sha256_t final_res, const BYTE data[], size_t len);
 
 
 #endif
+
