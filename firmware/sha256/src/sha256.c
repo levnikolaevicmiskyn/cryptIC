@@ -12,14 +12,27 @@ void sha256_init (hash_t *hash_val)
 	hash_val->h[7] = 0x5be0cd19;
 }
 
+void sha256_update_h (hash_t *res, const hash_t partial)
+{
+	res->h[0] += partial.h[0];
+	res->h[1] += partial.h[1];
+	res->h[2] += partial.h[2];
+	res->h[3] += partial.h[3];
+	res->h[4] += partial.h[4];
+	res->h[5] += partial.h[5];
+	res->h[6] += partial.h[6];
+	res->h[7] += partial.h[7];	
+}
+
 void sha256_chunk (hash_t *res, const BYTE data[64])
 {
 	int32_t w[64]; //Message schedule array
 	int32_t s0, s1, t1, t2, maj, ch;
 	hash_t h_loc;
+    int j;
 	
 	//Copy data into first 16 locations of message schedule array
-	for (int i = 0, int j = 0; i < 16; i++, j+=4)
+	for (int i = 0, j = 0; i < 16; i++, j+=4)
 	{
 		w[i] = (data[j + 3] << 24) | (data[j + 2] << 16) | (data[j + 1] << 8) | (data[j]);
 	}
@@ -42,7 +55,7 @@ void sha256_chunk (hash_t *res, const BYTE data[64])
 	for (int i = 0; i < 64; i++)
 	{
 		s1 = (ROTRIGHT (h_loc.h[4], 6)) ^ (ROTRIGHT (h_loc.h[4], 11)) ^ (ROTRIGHT (h_loc.h[4], 25));
-		ch = (h_loc.h[4] && h_loc.h[5]) ^ ( !(h_loc[4]) && h_loc.h[6]);
+		ch = (h_loc.h[4] && h_loc.h[5]) ^ ( !(h_loc.h[4]) && h_loc.h[6]);
 		t1 = h_loc.h[7] + s1 + ch + k[i] + w[i];
 		
 		s1 = (ROTRIGHT (h_loc.h[0], 2)) ^ (ROTRIGHT (h_loc.h[0], 13)) ^ (ROTRIGHT (h_loc.h[0], 22));
@@ -63,19 +76,8 @@ void sha256_chunk (hash_t *res, const BYTE data[64])
 	sha256_update_h (res, h_loc);
 }
 
-void sha256_update_h (hash_t *res, const hash_t partial)
-{
-	res->h[0] += partial.h[0];
-	res->h[1] += partial.h[1];
-	res->h[2] += partial.h[2];
-	res->h[3] += partial.h[3];
-	res->h[4] += partial.h[4];
-	res->h[5] += partial.h[5];
-	res->h[6] += partial.h[6];
-	res->h[7] += partial.h[7];	
-}
 
-void sha256 (sha256 *final_res, const BYTE data[], size_t len)
+void sha256 (sha256_t final_res, const BYTE data[], size_t len)
 {
 	
 	BYTE chunk[64]; //512-bit chunk to send to hash function
@@ -137,6 +139,6 @@ void sha256 (sha256 *final_res, const BYTE data[], size_t len)
 	//Compute the final hash value (Big Endian)
 	for (i = 0; i < 8; i++)
 	{
-		final_res[7-i] = res[i];
+		final_res[7-i] = res->h[i];
 	}
 }

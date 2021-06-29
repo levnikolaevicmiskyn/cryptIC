@@ -2,11 +2,12 @@
 #define sha256_h
 
 #include <stdint.h>
+#include <stdlib.h>
 
 #define N_BITS 32
 
-#define ROTLEFT (n, d) (((n) << (d)) | ((n) >> (N_BITS - (d))))
-#define ROTRIGHT (n, d) (((n) >> (d)) | ((n) << (N_BITS - (d))))
+#define ROTLEFT(n, d) (((n) << (d)) | ((n) >> (N_BITS - (d))))
+#define ROTRIGHT(n, d) (((n) >> (d)) | ((n) << (N_BITS - (d))))
 
 typedef unsigned char BYTE;
 
@@ -14,7 +15,7 @@ typedef struct hash_val {
   int32_t h[8];
 } hash_t;
 
-typedef int32_t[8] sha256;
+typedef int32_t sha256_t[8];
 
 static const int32_t k[64] = {
   0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
@@ -28,7 +29,7 @@ static const int32_t k[64] = {
 };
 
 
-void sha256 (sha256 *final_res, const BYTE data[], size_t len);
+void sha256 (sha256_t final_res, const BYTE data[], size_t len);
 
 //void sha256_init (hash_t *hash_val);
 
