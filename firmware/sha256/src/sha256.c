@@ -143,8 +143,26 @@ void sha256 (sha256_t final_res, const BYTE data[], size_t len)
     {
         printf ("%x", res.h[i]);
     }
+	
+	
+	hash_t swapped;
+	for (int i = 0; i < 8; i++)
+	{		
+		swapped.h[i] = 0;
+	}
+	int32_t mask;
+	for (int i = 0; i < 256; i++)
+	{
+		int pos = i%32;
+		mask = 0x1 << i%32;
+		swapped[i/32] += mask & (res.h[7-i/32] >> 31 - i%32);
+	}
+	for (int i = 0; i < 8; i++)
+	{		
+		printf("%x", swapped.h[i]);
+	}
 
-    for (i = 0; i < 1; i++){
+/*     for (i = 0; i < 1; i++){
     
         //swap bit i with bit 255 - i
         //calculate row col
@@ -164,7 +182,7 @@ void sha256 (sha256_t final_res, const BYTE data[], size_t len)
         printf("first bit  = %d second bit = %d\n", first_bit, second_bit);
         res.h[row1] = (res.h[row1] & ~(0x1 << col1)) | (first_bit << col1 ); 
         res.h[row2] = (res.h[row2] & ~(0x1 << col2)) | (second_bit << col2 );
-    }
+    } */
 	for (i = 0; i < 8; i++)
 	{
 		final_res[i] = res.h[i];
