@@ -9,7 +9,7 @@ int main ()
 {
     sha256_t res;
     sha256 (res, (BYTE *)test_str, strlen (test_str));
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 32; i++)
     {
         printf ("%x", res[i]);
     }

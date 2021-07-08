@@ -143,6 +143,7 @@ void sha256 (sha256_t final_res, const BYTE data[], size_t len)
     {
         printf ("%x", res.h[i]);
     }
+    printf("\n");
 	
 	
 	hash_t swapped;
@@ -153,14 +154,18 @@ void sha256 (sha256_t final_res, const BYTE data[], size_t len)
 	int32_t mask;
 	for (int i = 0; i < 256; i++)
 	{
-		int pos = i%32;
 		mask = 0x1 << i%32;
-		swapped[i/32] += mask & (res.h[7-i/32] >> 31 - i%32);
+        if ((31 - (i%32)*2) > 0)
+		    swapped.h[i/32] |= (mask & (res.h[7-i/32] >> (31 - (i%32)*2)));
+        else
+		    swapped.h[i/32] |= (mask & (res.h[7-i/32] << ((i%32)*2 - 31)));
+        printf("%08x\n", swapped.h[i/32]);
 	}
 	for (int i = 0; i < 8; i++)
 	{		
-		printf("%x", swapped.h[i]);
+		printf("%08x", swapped.h[i]);
 	}
+    printf ("\n");
 
 /*     for (i = 0; i < 1; i++){
     
@@ -183,9 +188,15 @@ void sha256 (sha256_t final_res, const BYTE data[], size_t len)
         res.h[row1] = (res.h[row1] & ~(0x1 << col1)) | (first_bit << col1 ); 
         res.h[row2] = (res.h[row2] & ~(0x1 << col2)) | (second_bit << col2 );
     } */
-	for (i = 0; i < 8; i++)
-	{
-		final_res[i] = res.h[i];
+    for (i = 0; i < 4; ++i) {
+		final_res[i]      = (res.h[0] >> (24 - i * 8)) & 0x000000ff;
+		final_res[i + 4]  = (res.h[1] >> (24 - i * 8)) & 0x000000ff;
+		final_res[i + 8]  = (res.h[2] >> (24 - i * 8)) & 0x000000ff;
+		final_res[i + 12] = (res.h[3] >> (24 - i * 8)) & 0x000000ff;
+		final_res[i + 16] = (res.h[4] >> (24 - i * 8)) & 0x000000ff;
+		final_res[i + 20] = (res.h[5] >> (24 - i * 8)) & 0x000000ff;
+		final_res[i + 24] = (res.h[6] >> (24 - i * 8)) & 0x000000ff;
+		final_res[i + 28] = (res.h[7] >> (24 - i * 8)) & 0x000000ff;
 	}
 }
 
