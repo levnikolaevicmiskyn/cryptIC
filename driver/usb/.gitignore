@@ -1,0 +1,13 @@
+# Ignore compilation files
+*.ko
+*.o
+.*.cmd
+*.order
+*.mod
+*.mod.c
+
+# Temporary files
+*~
+core
+.depend
+.tmp_versions
