@@ -18,9 +18,15 @@
 #error Undefined device Product ID
 #endif
 
+#define CRYPTODEV_DEVICE_NAME "cryptIC"
 #define CRYPTODEV_MINOR_BASE 100
 
+#define MAX_TRANSFER 512
 #define WRITES_IN_FLIGHT 1
+
+/* Module setup ******************************************************************************************************/
+int cryptodev_init(void);
+void cryptodev_exit(void);
 
 /* USB operations ****************************************************************************************************/
 int cryptodev_probe(struct usb_interface *intf, const struct usb_device_id *id);
@@ -30,12 +36,12 @@ int cryptodev_resume(struct usb_interface *intf);
 int cryptodev_pre_reset(struct usb_interface *intf);
 int cryptodev_post_reset(struct usb_interface *intf);
 
-
 /* File operations ***************************************************************************************************/
 int cryptodev_open(struct inode *inode, struct file *file);
 int cryptodev_release(struct inode *inode, struct file *file);
 ssize_t cryptodev_read(struct file *file, char *buffer, size_t count, loff_t *ppos);
 ssize_t cryptodev_write(struct file *file, const char *buffer, size_t count, loff_t *ppos);
+int cryptodev_flush(struct file *file, fl_owner_t id);
 
 /* Types *************************************************************************************************************/
 /* Device information */
