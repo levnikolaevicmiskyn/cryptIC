@@ -103,6 +103,10 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
     */
     memcpy(ctx->buf+buflen, data, len);
     ctx->count += len;
+    /* DEBUG */
+    ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
+    printk(KERN_ALERT "cryptic: finished update: current buffer is(%d) %s\n", ctx->count, ctx->buf);
+    /* END DEBUG */
     spin_unlock_irqrestore(&crctx->lock, irqflags);
     return 0;
   }
@@ -187,7 +191,7 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   }
 
   /*DEBUG*/
-  memcpy(cryptdata->digest, ctx->buf, SHA256_DIGEST_SIZE); 
+  memcpy(cryptdata->digest, ctx->buf, SHA256_DIGEST_SIZE);
 
   /* Copy result out */
   memcpy(out, cryptdata->digest, SHA256_DIGEST_SIZE);
