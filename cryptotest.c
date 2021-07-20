@@ -22,7 +22,7 @@ int cryptic_init_module(void){
 
 void cryptic_cleanup(void){
   // Unregister algorithm
-  crypto_unregister_skcipher(&caesar_alg);
+  cryptic_sha256_unregister();
 }
 
 module_init(cryptic_init_module);
