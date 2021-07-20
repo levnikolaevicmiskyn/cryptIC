@@ -4,7 +4,7 @@
   Based on stm32_hash
 */
 #include <linux/crypto.h>
-#include <crypto/sha2.h>
+#include <crypto/sha.h>
 
 /* Defines */
 #define HASH_MAX_KEY_SIZE (SHA256_BLOCK_SIZE * 8)
