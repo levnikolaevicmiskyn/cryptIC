@@ -83,11 +83,11 @@ static int cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
 
 static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned int len){
   printk(KERN_ALERT "cryptic: entering sha256_update.\n");
-  struct cryptic_state* ctx = shash_desc_ctx(desc);
-  struct cryptic_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
+  struct cryptic_desc_ctx* ctx = shash_desc_ctx(desc);
+  struct cryptic_sha256_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
   struct cryptpb* cryptdata = (struct cryptpb*) crctx->cryptic_data;
   int ret;
-  u64 total, start, end;
+  u64 total, start, end, nbytes;
   unsigned long irqflags;
   u64 buflen = ctx->count % CRYPTIC_BUF_LEN;
 
@@ -159,9 +159,9 @@ return 0;
 
 
 static int cryptic_sha_final(struct shash_desc* desc, u8* out){
-  printk(KERN_ALERT "cryptic: entering sha256_final.\n")
-  struct cryptic_state* ctx = shash_desc_ctx(desc);
-  struct cryptic_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
+  printk(KERN_ALERT "cryptic: entering sha256_final.\n");
+  struct cryptic_desc_ctx* ctx = shash_desc_ctx(desc);
+  struct cryptic_sha256_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
   struct cryptpb* cryptdata = (struct cryptdata*) crctx->cryptic_data;
 
   unsigned long irqflags;
@@ -189,7 +189,7 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
 
 static int cryptic_sha_init(struct shash_desc* desc){
   printk(KERN_ALERT "cryptic: entering sha256_init function.\n");
-  struct cryptic_state* ctx = shash_desc_ctx(desc);
+  struct cryptic_desc_ctx* ctx = shash_desc_ctx(desc);
   int i;
   memset(ctx, 0, sizeof(struct cryptic_state));
 
