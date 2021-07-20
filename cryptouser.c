@@ -71,3 +71,5 @@ static int __init module_start(void)
 
     return 0;
 }
+
+module_init(module_start);
