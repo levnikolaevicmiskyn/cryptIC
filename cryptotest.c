@@ -12,6 +12,9 @@
 #include "interface.h"
 
 
+MODULE_LICENSE("Dual BSD/GPL");
+MODULE_AUTHOR("cryptic");
+
 int cryptic_init_module(void){
   // Register algorithm
   int ret;
