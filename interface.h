@@ -53,7 +53,7 @@ struct cryptic_desc_ctx {
 /**
 * cryptic_ctx_init: initialization function for a Crypto API context
 **/
-static int cryptic_cra_sha256_init(struct crypto_tfm *tfm){
+static void* cryptic_cra_sha256_init(struct crypto_tfm *tfm){
   struct cryptic_sha256_ctx* ctx = crypto_tfm_ctx(tfm);
   /* Check device state */
 //  if (cryptic_driver.of.status != CRYPTIC_OK){
@@ -69,16 +69,14 @@ static int cryptic_cra_sha256_init(struct crypto_tfm *tfm){
   if (ctx->cryptic_data == NULL)
     return -ENOMEM;
 
-  return 0;
 }
 
-static int cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
+static void* cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
   struct cryptic_sha256_ctx* ctx = crypto_tfm_ctx(tfm);
   if (ctx->cryptic_data != NULL)
     kfree(ctx->cryptic_data);
 
   ctx->cryptic_data = NULL;
-  return 0;
 }
 
 static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned int len){
@@ -95,7 +93,7 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
   ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
   printk(KERN_ALERT "cryptic: current buffer is %s\n", ctx->buf);
   /* END DEBUG */
-  spin_lock_irqsave(&crctx->lock, irqflags)
+  spin_lock_irqsave(&crctx->lock, irqflags);
 
   total = buflen + len;
   if (total < CRYPTIC_BUF_LEN){
@@ -105,7 +103,7 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
     */
     memcpy(ctx->buf+buflen, data, len);
     ctx->count += len;
-    spin_unlock_irqrestore(cryptic_ctx->lock, irqflags);
+    spin_unlock_irqrestore(crctx->lock, irqflags);
     return 0;
   }
 
@@ -162,10 +160,10 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   printk(KERN_ALERT "cryptic: entering sha256_final.\n");
   struct cryptic_desc_ctx* ctx = shash_desc_ctx(desc);
   struct cryptic_sha256_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
-  struct cryptpb* cryptdata = (struct cryptdata*) crctx->cryptic_data;
+  struct cryptpb* cryptdata = (struct cryptpb*) crctx->cryptic_data;
 
   unsigned long irqflags;
-  u64 buflen = ctx->count % SHA256_BUF_LEN;
+  u64 buflen = ctx->count % CRYPTIC_BUF_LEN;
 
   spin_lock_irqsave(&crctx->lock, irqflags);
   if (ctx->count > CRYPTIC_BUF_LEN){
@@ -184,14 +182,15 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   /* Copy result out */
   memcpy(out, cryptdata->digest, SHA256_DIGEST_SIZE);
 
-  spin_unlock_irqrestore(crctx->lock, irqflags);
+  spin_unlock_irqrestore(&crctx->lock, irqflags);
+  return 0;
 }
 
 static int cryptic_sha_init(struct shash_desc* desc){
   printk(KERN_ALERT "cryptic: entering sha256_init function.\n");
   struct cryptic_desc_ctx* ctx = shash_desc_ctx(desc);
   int i;
-  memset(ctx, 0, sizeof(struct cryptic_state));
+  memset(ctx, 0, sizeof(struct cryptic_desc_ctx));
 
   for (i=0; i <= 7; i++){
     ctx->state[i] = SHA256_H;
@@ -240,17 +239,18 @@ static struct shash_alg alg_sha256 = {
   }
 };
 
-static int cryptic_sha256_register(){
+static int cryptic_sha256_register(void){
   int ret = crypto_register_shash(&alg_sha256);
-  if (ret < 0)
+  if (ret < 0){
     printk(KERN_ALERT "cryptic: failed to register sha256.\n");
-  else
+  }
+  else{
     printk(KERN_ALERT "cryptic: sha256 registered successfully.\n");
-
-    return ret;
+  }
+  return ret;
 }
 
-static int cryptic_sha256_unregister(){
-  int ret = crypto_unregister_shash(&alg_sha256);
-    return ret;
+static int cryptic_sha256_unregister(void){
+  crypto_unregister_shash(&alg_sha256);
+  return 0;
 }
