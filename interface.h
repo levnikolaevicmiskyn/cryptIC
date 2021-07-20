@@ -53,7 +53,7 @@ struct cryptic_desc_ctx {
 /**
 * cryptic_ctx_init: initialization function for a Crypto API context
 **/
-static void cryptic_cra_sha256_init(struct crypto_tfm *tfm){
+static int cryptic_cra_sha256_init(struct crypto_tfm *tfm){
   struct cryptic_sha256_ctx* ctx = crypto_tfm_ctx(tfm);
   /* Check device state */
 //  if (cryptic_driver.of.status != CRYPTIC_OK){
