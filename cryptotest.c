@@ -14,6 +14,7 @@
 
 int cryptic_init_module(void){
   // Register algorithm
+  int ret;
   ret = cryptic_sha256_register();
   printk(KERN_ALERT "cryptic: driver init function.\n");
   return 0;

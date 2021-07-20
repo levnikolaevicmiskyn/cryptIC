@@ -53,7 +53,7 @@ struct cryptic_desc_ctx {
 /**
 * cryptic_ctx_init: initialization function for a Crypto API context
 **/
-static void* cryptic_cra_sha256_init(struct crypto_tfm *tfm){
+static void cryptic_cra_sha256_init(struct crypto_tfm *tfm){
   struct cryptic_sha256_ctx* ctx = crypto_tfm_ctx(tfm);
   /* Check device state */
 //  if (cryptic_driver.of.status != CRYPTIC_OK){
@@ -68,15 +68,16 @@ static void* cryptic_cra_sha256_init(struct crypto_tfm *tfm){
 
   if (ctx->cryptic_data == NULL)
     return -ENOMEM;
-
+    return NULL;
 }
 
-static void* cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
+static void cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
   struct cryptic_sha256_ctx* ctx = crypto_tfm_ctx(tfm);
   if (ctx->cryptic_data != NULL)
     kfree(ctx->cryptic_data);
 
   ctx->cryptic_data = NULL;
+  return NULL;
 }
 
 static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned int len){
@@ -103,7 +104,7 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
     */
     memcpy(ctx->buf+buflen, data, len);
     ctx->count += len;
-    spin_unlock_irqrestore(crctx->lock, irqflags);
+    spin_unlock_irqrestore(&crctx->lock, irqflags);
     return 0;
   }
 
