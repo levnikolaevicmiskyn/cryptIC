@@ -42,7 +42,7 @@ static int do_sha256(const unsigned char *data, unsigned char *out_digest)
 {
     struct crypto_shash *alg;
     char *hash_alg_name = "msha256";
-    unsigned int datalen = sizeof(data) - 1; // remove the null byte
+    unsigned int datalen = 11; // remove the null byte
 
     alg = crypto_alloc_shash(hash_alg_name, 0, 0);
     if(IS_ERR(alg)){
