@@ -239,7 +239,11 @@ static int cryptic_sha_init(struct shash_desc* desc){
 
 
 static int cryptic_sha256_register(){
-  crypto_register_shash(alg_sha256);
+  int ret = crypto_register_shash(alg_sha256);
+  if (ret < 0)
+    printk(KERN_ALERT "cryptic: failed to register sha256.\n");
+  else
+    printk(KERN_ALERT "cryptic: sha256 registered successfully.\n");
 
-  printk(KERN_ALERT "cryptic: sha256 registered successfully.\n");
+    return ret;
 }
