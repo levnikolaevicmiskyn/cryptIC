@@ -151,6 +151,10 @@ if (total){
 ctx->count += len;
 
 memcpy(ctx->state, cryptdata->digest, SHA256_DIGEST_SIZE);
+/* DEBUG */
+ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
+printk(KERN_ALERT "cryptic: finished update: current buffer is(%d) %s\n", ctx->count, ctx->buf);
+/* END DEBUG */
 spin_unlock_irqrestore(&crctx->lock, irqflags);
 return 0;
 }
@@ -170,7 +174,10 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
     /* In this case there is a partial digest to be copied to the device*/
     memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
   }
-
+  /* DEBUG */
+  ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
+  printk(KERN_ALERT "cryptic: final: current buffer is %s\n", ctx->buf);
+  /* END DEBUG */
   /* Now copy buffer and finalize */
   if (buflen){
     memcpy(cryptdata->message, ctx->buf, buflen);
