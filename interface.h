@@ -14,12 +14,12 @@
 /* Initial state constants */
 #define SHA256_H 0
 
-struct device_data{
+struct cryptpb{
   u8 message[CRYPTIC_BUF_LEN];
   u8 in_partial_digest[SHA256_DIGEST_SIZE];
-  u8 digest[SHA256_DIGEST_SIZE*CRYTPIC_N_BLOCKS];
+  u8 digest[SHA256_DIGEST_SIZE*CRYPTIC_N_BLOCKS];
   u32 len;
-}
+};
 
 /* Hash context structure */
 struct cryptic_sha256_ctx {
@@ -47,47 +47,8 @@ struct cryptic_desc_ctx {
 //  u64 shash[2];
 //  u8 buffer[SHA256_DIGEST_SIZE];
 //  int bytes;
-}
-
-/*
-struct ahash_alg
-  .init: initalize the transformation context
-  .update: push a chunk of data into the driver for transformation. The driver then
-          passes the data to the driver as seen fit. The function must not finalize the the HASH transformation,
-          it only adds data to the transformation.
-  .final: Retrieve result from the driver.
-  .finup: combination of update and final in sequence
-  .digest: combination of init, update and final
-  .setkey: Set an optional key used by the hashing algorithm
-  .statesize
-  .descsize
-  .base: crypto_alg structure
-*/
-static struct shash_alg alg_sha256 = {
-  .init   = cryptic_sha_init,
-  .update = cryptic_sha_update,
-  .final  = cryptic_sha_final,
-//  .finup  = cryptic_sha_finup,
-//  .digest = cryptic_sha_digest,
-  .digestsize = SHA256_DIGEST_SIZE, // =32, defined in crypto/sha2.h
-  .statesize = sizeof (struct cryptic_sha256_state),
-  .descsize = sizeof (struct cryptic_sha256_state),
-  .base = {
-              .cra_name = "msha256",
-              .cra_driver_name = "cryptic-sha256",
-              .cra_priority = 300,
-              .cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY, // hardware-accelerated but not in the ISA
-              .cra_blocksize = SHA256_BLOCK_SIZE, // = 64
-              .cra_ctxsize = sizeof(struct cryptic_sha256_ctx),
-              //.cra_alignmask = 3, // !!! CHECK
-              /* cra_init: initialize the transformation object, this is called right after the
-              transformation object is allocated */
-              .cra_init = cryptic_cra_sha256_init,
-              .cra_exit = cryptic_cra_sha256_exit,
-              .cra_module = THIS_MODULE
-
-  }
 };
+
 
 /**
 * cryptic_ctx_init: initialization function for a Crypto API context
@@ -95,11 +56,10 @@ static struct shash_alg alg_sha256 = {
 static int cryptic_cra_sha256_init(struct crypto_tfm *tfm){
   struct cryptic_sha256_ctx* ctx = crypto_tfm_ctx(tfm);
   /* Check device state */
-  if (cryptic_driver.of.status != CRYPTIC_OK){
-    printk(KERN_ALERT "Cannot initialize a crypto context until the device is ready\n");
-    return -ENODEV;
-  }
-
+//  if (cryptic_driver.of.status != CRYPTIC_OK){
+//    printk(KERN_ALERT "Cannot initialize a crypto context until the device is ready\n");
+//    return -ENODEV;
+//
   /* Maybe setup a software callback */
 
   /* Initialize spinlock to protect access to the context */
@@ -113,18 +73,21 @@ static int cryptic_cra_sha256_init(struct crypto_tfm *tfm){
 }
 
 static int cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
-  struct cryptic_sha256_ctx* ctx = crypto_tfm_ctx(tfm)
-  kfree(ctx->cryptic_data);
+  struct cryptic_sha256_ctx* ctx = crypto_tfm_ctx(tfm);
+  if (ctx->cryptic_data != NULL)
+    kfree(ctx->cryptic_data);
+
   ctx->cryptic_data = NULL;
+  return 0;
 }
 
 static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned int len){
   printk(KERN_ALERT "cryptic: entering sha256_update.\n");
   struct cryptic_state* ctx = shash_desc_ctx(desc);
   struct cryptic_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
-  struct cryptpb* cryptdata = (struct cryptdata*) crctx->cryptic_data;
+  struct cryptpb* cryptdata = (struct cryptpb*) crctx->cryptic_data;
   int ret;
-  u64 total;
+  u64 total, start, end;
   unsigned long irqflags;
   u64 buflen = ctx->count % CRYPTIC_BUF_LEN;
 
@@ -142,7 +105,7 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
     */
     memcpy(ctx->buf+buflen, data, len);
     ctx->count += len;
-    spin_unlock_irqrestore(cryptic_ctx->lock, irq_flags)
+    spin_unlock_irqrestore(cryptic_ctx->lock, irqflags);
     return 0;
   }
 
@@ -237,13 +200,57 @@ static int cryptic_sha_init(struct shash_desc* desc){
   return 0;
 }
 
+/*
+struct ahash_alg
+  .init: initalize the transformation context
+  .update: push a chunk of data into the driver for transformation. The driver then
+          passes the data to the driver as seen fit. The function must not finalize the the HASH transformation,
+          it only adds data to the transformation.
+  .final: Retrieve result from the driver.
+  .finup: combination of update and final in sequence
+  .digest: combination of init, update and final
+  .setkey: Set an optional key used by the hashing algorithm
+  .statesize
+  .descsize
+  .base: crypto_alg structure
+*/
+static struct shash_alg alg_sha256 = {
+  .init   = cryptic_sha_init,
+  .update = cryptic_sha_update,
+  .final  = cryptic_sha_final,
+//  .finup  = cryptic_sha_finup,
+//  .digest = cryptic_sha_digest,
+  .digestsize = SHA256_DIGEST_SIZE, // =32, defined in crypto/sha2.h
+  .statesize = sizeof (struct cryptic_desc_ctx),
+  .descsize = sizeof (struct cryptic_desc_ctx),
+  .base = {
+              .cra_name = "msha256",
+              .cra_driver_name = "cryptic-sha256",
+              .cra_priority = 300,
+              .cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY, // hardware-accelerated but not in the ISA
+              .cra_blocksize = SHA256_BLOCK_SIZE, // = 64
+              .cra_ctxsize = sizeof(struct cryptic_sha256_ctx),
+              //.cra_alignmask = 3, // !!! CHECK
+              /* cra_init: initialize the transformation object, this is called right after the
+              transformation object is allocated */
+              .cra_init = cryptic_cra_sha256_init,
+              .cra_exit = cryptic_cra_sha256_exit,
+              .cra_module = THIS_MODULE
+
+  }
+};
 
 static int cryptic_sha256_register(){
-  int ret = crypto_register_shash(alg_sha256);
+  int ret = crypto_register_shash(&alg_sha256);
   if (ret < 0)
     printk(KERN_ALERT "cryptic: failed to register sha256.\n");
   else
     printk(KERN_ALERT "cryptic: sha256 registered successfully.\n");
 
+    return ret;
+}
+
+static int cryptic_sha256_unregister(){
+  int ret = crypto_unregister_shash(&alg_sha256);
     return ret;
 }
