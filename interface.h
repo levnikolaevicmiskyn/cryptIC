@@ -68,7 +68,7 @@ static int cryptic_cra_sha256_init(struct crypto_tfm *tfm){
 
   if (ctx->cryptic_data == NULL)
     return -ENOMEM;
-    return NULL;
+  return 0;
 }
 
 static void cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
@@ -77,7 +77,6 @@ static void cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
     kfree(ctx->cryptic_data);
 
   ctx->cryptic_data = NULL;
-  return NULL;
 }
 
 static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned int len){
