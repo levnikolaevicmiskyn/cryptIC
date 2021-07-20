@@ -186,6 +186,9 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
     /* SEND REQUEST THROUGH USB */
   }
 
+  /*DEBUG*/
+  memcpy(cryptdata->digest, ctx->buf, SHA256_DIGEST_SIZE); 
+
   /* Copy result out */
   memcpy(out, cryptdata->digest, SHA256_DIGEST_SIZE);
 
