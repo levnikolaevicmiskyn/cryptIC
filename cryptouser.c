@@ -1,6 +1,7 @@
 #include <linux/module.h>
 #include <crypto/hash.h>
-
+MODULE_LICENSE("Dual BSD/GPL");
+MODULE_AUTHOR("cryptouser");
 struct sdesc {
     struct shash_desc shash;
     char ctx[];
