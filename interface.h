@@ -169,7 +169,7 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   struct cryptic_desc_ctx* ctx = shash_desc_ctx(desc);
   struct cryptic_sha256_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
   struct cryptpb* cryptdata = (struct cryptpb*) crctx->cryptic_data;
-
+  int i;
   unsigned long irqflags;
   u64 buflen = ctx->count % CRYPTIC_BUF_LEN;
 
@@ -192,7 +192,9 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
 
   /*DEBUG*/
   memcpy(cryptdata->digest, ctx->buf, SHA256_DIGEST_SIZE);
-
+  for(i=0; i<SHA256_DIGEST_SIZE-1; i++){
+    cryptdata->digest[i]++;
+  }
   /* Copy result out */
   memcpy(out, cryptdata->digest, SHA256_DIGEST_SIZE);
 
