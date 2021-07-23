@@ -10,7 +10,14 @@ obj-m += usbdriver.o
 CFLAGS_usbdriver.o := $(CFLAGS)
 
 all:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules $(C_COMPILER_FLAGS)
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules $(C_COMPILER_FLAGS); \
+	make test_io
+
+test_io: test_io.o
+	$(CC) $^ -o $@
+
+test_io.o: test_io.c
+	$(CC) -c $< $(CFLAGS)
 
 clean:
 	$(RM) *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.mod *.symvers *.order

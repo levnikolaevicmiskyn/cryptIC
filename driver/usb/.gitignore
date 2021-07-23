@@ -5,9 +5,11 @@
 *.order
 *.mod
 *.mod.c
+test_io
 
 # Temporary files
 *~
 core
 .depend
 .tmp_versions
+*symvers
