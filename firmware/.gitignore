@@ -1,0 +1,3 @@
+# Compilation files
+*.o
+test_sha256

@@ -8,6 +8,7 @@
 
 int main()
 {
+<<<<<<< HEAD
     BYTE text1[] = {"nelmezzodelcammindinostravitamiritrovaiperunaselvaoscuracheladirettaviaerasmartita"};
     BYTE final_hash[SHA256_BLOCK_SIZE];
 	SHA256_CTX ctx;
@@ -20,5 +21,15 @@ int main()
     printf("\n");
 
 	return(0);
+=======
+    sha256_t res;
+    sha256 (res, (BYTE *)test_str, strlen (test_str));
+    for (int i = 0; i < 32; i++)
+    {
+        printf ("%x", res[i]);
+    }
+    printf ("\n");
+    return 0;
+>>>>>>> 3e6fd1807de3467ad2595966ccbe2cf952ccf3a5
 }
 
