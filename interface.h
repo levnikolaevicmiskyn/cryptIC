@@ -28,9 +28,8 @@ struct cryptic_sha256_ctx {
   spinlock_t lock;
 
   struct cryptpb* cryptic_data;
-  /* key */
-  u8 key[HASH_MAX_KEY_SIZE];
-  int keylen;
+
+  struct crypto_shash* fallback;
 };
 
 /** Context
@@ -44,11 +43,11 @@ struct cryptic_desc_ctx {
   u64 count;
   u8 buf[CRYPTIC_BUF_LEN];
 
-//  u64 shash[2];
-//  u8 buffer[SHA256_DIGEST_SIZE];
-//  int bytes;
+  /* Fallback */
+  struct shash_desc fallback;
 };
 
+struct crypto_shash* fallback;
 
 /**
 * cryptic_ctx_init: initialization function for a Crypto API context
@@ -61,6 +60,16 @@ static int cryptic_cra_sha256_init(struct crypto_tfm *tfm){
 //    return -ENODEV;
 //
   /* Maybe setup a software callback */
+  const char* fallback_alg_name = crypto_shash_alg_name(hash);
+  struct crypto_shash* fallback_tfm;
+  /* Allocate a fallback */
+  fallback_tfm = crypto_alloc_shash(fallback_alg_name, 0, CRYPTO_ALG_NEED_FALLBACK);
+  if (IS_ERR(fallback_tfm)){
+    printk(KERN_ALERT "cryptic: cannot allocate a fallback algorithm");
+    return fallback_tfm;
+  }
+
+  ctx->fallback = fallback_tfm;
 
   /* Initialize spinlock to protect access to the context */
   spin_lock_init(&ctx->lock);
@@ -77,6 +86,9 @@ static void cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
     kfree(ctx->cryptic_data);
 
   ctx->cryptic_data = NULL;
+
+  if (ctx->fallback != NULL)
+    crypto_free_shash(ctx->fallback);
 }
 
 static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned int len){
@@ -205,18 +217,29 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
 static int cryptic_sha_init(struct shash_desc* desc){
   printk(KERN_ALERT "cryptic: entering sha256_init function.\n");
   struct cryptic_desc_ctx* ctx = shash_desc_ctx(desc);
-  int i;
+  struct cryptic_sha256_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
   memset(ctx, 0, sizeof(struct cryptic_desc_ctx));
 
-  for (i=0; i <= 7; i++){
-    ctx->state[i] = SHA256_H;
-  }
+  ctx->state[0] = 0x6a09e667;
+  ctx->state[1] = 0xbb67ae85;
+  ctx->state[2] = 0x3c6ef372;
+  ctx->state[3] = 0xa54ff53a;
+  ctx->state[4] = 0x510e527f;
+  ctx->state[5] = 0x9b05688c;
+  ctx->state[6] = 0x1f83d9ab;
+  ctx->state[7] = 0x5be0cd19;
+
   ctx->count = 0;
+
+  /* Initialize fallback algorithm */
+  ctx->fallback.tfm = crctx->fallback;
+  crypto_shash_init(&ctx->fallback);
+
   return 0;
 }
 
 /*
-struct ahash_alg
+struct shash_alg
   .init: initalize the transformation context
   .update: push a chunk of data into the driver for transformation. The driver then
           passes the data to the driver as seen fit. The function must not finalize the the HASH transformation,
@@ -245,7 +268,6 @@ static struct shash_alg alg_sha256 = {
               .cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY, // hardware-accelerated but not in the ISA
               .cra_blocksize = SHA256_BLOCK_SIZE, // = 64
               .cra_ctxsize = sizeof(struct cryptic_sha256_ctx),
-              //.cra_alignmask = 3, // !!! CHECK
               /* cra_init: initialize the transformation object, this is called right after the
               transformation object is allocated */
               .cra_init = cryptic_cra_sha256_init,
