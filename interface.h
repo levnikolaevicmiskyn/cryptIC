@@ -119,6 +119,7 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
     ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
     printk(KERN_ALERT "cryptic: finished update: current buffer is(%d) %s\n", ctx->count, ctx->buf);
     /* END DEBUG */
+    crypto_shash_update(&(ctx->fallback), data, len);
     spin_unlock_irqrestore(&crctx->lock, irqflags);
     return 0;
   }
@@ -158,7 +159,7 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
   start = end;
 
   /*  SEND REQUEST THROUGH USB */
-  cryptic_submit_request(desc, cryptdata);
+  cryptic_submit_request(ctx, cryptdata);
 } while(total >= CRYPTIC_BUF_LEN);
 
 if (total){
@@ -201,7 +202,7 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
     cryptdata->len = buflen;
 
     /* SEND REQUEST THROUGH USB */
-    cryptic_submit_request(desc, cryptdata);
+    cryptic_submit_request(ctx, cryptdata);
   }
 
   /*DEBUG*/
