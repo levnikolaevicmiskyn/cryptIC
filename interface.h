@@ -55,7 +55,7 @@ static int cryptic_cra_sha256_init(struct crypto_tfm *tfm){
 //    return -ENODEV;
 //
   /* Maybe setup a software callback */
-  const char* fallback_alg_name = crypto_shash_alg_name(tfm);
+  const char* fallback_alg_name = crypto_tfm_alg_name(tfm);
   struct crypto_shash* fallback_tfm;
   /* Allocate a fallback */
   fallback_tfm = crypto_alloc_shash(fallback_alg_name, 0, CRYPTO_ALG_NEED_FALLBACK);
