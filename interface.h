@@ -55,7 +55,7 @@ static int cryptic_cra_sha256_init(struct crypto_tfm *tfm){
 //    return -ENODEV;
 //
   /* Maybe setup a software callback */
-  const char* fallback_alg_name = crypto_shash_alg_name(hash);
+  const char* fallback_alg_name = crypto_shash_alg_name();
   struct crypto_shash* fallback_tfm;
   /* Allocate a fallback */
   fallback_tfm = crypto_alloc_shash(fallback_alg_name, 0, CRYPTO_ALG_NEED_FALLBACK);
@@ -87,7 +87,7 @@ static void cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
 }
 
 static int cryptic_submit_request(struct shash_desc* desc, struct cryptpb* cryptdata){
-  crypto_shash_update(&(desc.fallback), cryptdata->message, cryptdata->len);
+  return crypto_shash_update(&(desc->fallback), cryptdata->message, cryptdata->len);
 }
 
 static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned int len){
@@ -266,7 +266,7 @@ static struct shash_alg alg_sha256 = {
   .statesize = sizeof (struct cryptic_desc_ctx),
   .descsize = sizeof (struct cryptic_desc_ctx),
   .base = {
-              .cra_name = "msha256",
+              .cra_name = "sha256",
               .cra_driver_name = "cryptic-sha256",
               .cra_priority = 300,
               .cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY, // hardware-accelerated but not in the ISA
