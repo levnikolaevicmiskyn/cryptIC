@@ -86,7 +86,7 @@ static void cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
     crypto_free_shash(ctx->fallback);
 }
 
-static int cryptic_submit_request(struct shash_desc* desc, struct cryptpb* cryptdata){
+static int cryptic_submit_request(struct cryptic_desc_ctx* desc, struct cryptpb* cryptdata){
   crypto_shash_update(&(desc->fallback), cryptdata->message, cryptdata->len);
   return 0;
 }
