@@ -11,9 +11,6 @@
 #define CRYPTIC_N_BLOCKS 2
 #define CRYPTIC_BUF_LEN SHA256_BLOCK_SIZE*CRYPTIC_N_BLOCKS
 
-/* Initial state constants */
-#define SHA256_H 0
-
 struct cryptpb{
   u8 message[CRYPTIC_BUF_LEN];
   u8 in_partial_digest[SHA256_DIGEST_SIZE];
@@ -46,8 +43,6 @@ struct cryptic_desc_ctx {
   /* Fallback */
   struct shash_desc fallback;
 };
-
-struct crypto_shash* fallback;
 
 /**
 * cryptic_ctx_init: initialization function for a Crypto API context
@@ -89,6 +84,10 @@ static void cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
 
   if (ctx->fallback != NULL)
     crypto_free_shash(ctx->fallback);
+}
+
+static int cryptic_submit_request(struct shash_desc* desc, struct cryptpb* cryptdata){
+  crypto_shash_update(&(desc.fallback), cryptdata->message, cryptdata->len);
 }
 
 static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned int len){
@@ -158,6 +157,7 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
   start = end;
 
   /*  SEND REQUEST THROUGH USB */
+  cryptic_submit_request(desc, cryptdata);
 } while(total >= CRYPTIC_BUF_LEN);
 
 if (total){
@@ -200,6 +200,7 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
     cryptdata->len = buflen;
 
     /* SEND REQUEST THROUGH USB */
+    cryptic_submit_request(desc, cryptdata);
   }
 
   /*DEBUG*/
@@ -207,6 +208,9 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   for(i=0; i<SHA256_DIGEST_SIZE-1; i++){
     cryptdata->digest[i]++;
   }
+
+  /* Compute result using fallback */
+  crypto_shash_final(desc, cryptdata->digest);
   /* Copy result out */
   memcpy(out, cryptdata->digest, SHA256_DIGEST_SIZE);
 
