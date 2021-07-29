@@ -5,18 +5,22 @@
 #include <string.h>
 
 #define MAX_MESSAGE_SIZE 512
-#define TERM "\0"
+#define TERM '\n'
 
 int sendMessage(int fd, const char *buf, ssize_t size) {
-    printf("Sending message '%s[\\0]' [%lu B]... ", buf, size);
+    printf("Sending message '%s[\\n]' [%lu B]... ", buf, size + 1);
     fflush(stdout);
-    int n_sent_bytes = write(fd, buf, size);
+    char *terminated_message = (char *) malloc((size + 1) * sizeof(char));
+    strcpy(terminated_message, buf);
+    terminated_message[size] = TERM;
+    int n_sent_bytes = write(fd, terminated_message, size + 1);
     if (n_sent_bytes < 0) {
         printf("\n");
         perror("Error in sending data");
         return n_sent_bytes;
     }
     printf("Done [%d B]!\n", n_sent_bytes);
+    free(terminated_message);
     return n_sent_bytes;
 }
 
@@ -57,9 +61,10 @@ int main(int argc, char **argv) {
             done = 1;
         }
         // Send data
-        int n_sent_bytes = sendMessage(fd, message, strlen(message) + 1);
+        int n_sent_bytes = sendMessage(fd, message, strlen(message));
         if (n_sent_bytes > 0) {
-            readMessage(fd, message, 0);
+            sleep(1);
+            readMessage(fd, message, 2);
         }
     }
     printf("Quitting\n");
