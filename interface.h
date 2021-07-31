@@ -14,8 +14,8 @@
 struct cryptpb{
   u8 message[CRYPTIC_BUF_LEN];
   u8 in_partial_digest[SHA256_DIGEST_SIZE];
-  u8 digest[SHA256_DIGEST_SIZE*CRYPTIC_N_BLOCKS];
-  u32 len;
+  u8 digest[SHA256_DIGEST_SIZE];
+  unsigned int len;
 };
 
 /* Hash context structure */
@@ -37,7 +37,7 @@ struct cryptic_sha256_ctx {
 **/
 struct cryptic_desc_ctx {
   __u32 state[SHA256_DIGEST_SIZE / 4];
-  u64 count;
+  unsigned int count;
   u8 buf[CRYPTIC_BUF_LEN];
 
   /* Fallback */
@@ -47,25 +47,28 @@ struct cryptic_desc_ctx {
 /**
 * cryptic_ctx_init: initialization function for a Crypto API context
 **/
-static int cryptic_cra_sha256_init(struct crypto_tfm *tfm){
-  struct cryptic_sha256_ctx* ctx = crypto_tfm_ctx(tfm);
+static int cryptic_cra_sha256_init(struct crypto_shash *tfm){
+  struct cryptic_sha256_ctx* ctx = crypto_shash_ctx(tfm);
+  printk(KERN_ALERT "cryptic: entered cra_init");
   /* Check device state */
 //  if (cryptic_driver.of.status != CRYPTIC_OK){
 //    printk(KERN_ALERT "Cannot initialize a crypto context until the device is ready\n");
 //    return -ENODEV;
 //
   /* Maybe setup a software callback */
-  const char* fallback_alg_name = crypto_tfm_alg_name(tfm);
+  const char* fallback_alg_name = crypto_shash_alg_name(tfm);
+  printk(KERN_ALERT "alg name: %s", fallback_alg_name); 
   struct crypto_shash* fallback_tfm;
   /* Allocate a fallback */
   fallback_tfm = crypto_alloc_shash(fallback_alg_name, 0, CRYPTO_ALG_NEED_FALLBACK);
   if (IS_ERR(fallback_tfm)){
-    printk(KERN_ALERT "cryptic: cannot allocate a fallback algorithm");
-    return fallback_tfm;
+   printk(KERN_ALERT "cryptic: cannot allocate a fallback algorithm");
+    return -1;
   }
 
   ctx->fallback = fallback_tfm;
-
+  tfm->descsize += crypto_shash_descsize(fallback_tfm);
+  
   /* Initialize spinlock to protect access to the context */
   spin_lock_init(&ctx->lock);
   ctx->cryptic_data = kmalloc(sizeof (struct cryptpb), GFP_KERNEL);
@@ -75,20 +78,29 @@ static int cryptic_cra_sha256_init(struct crypto_tfm *tfm){
   return 0;
 }
 
-static void cryptic_cra_sha256_exit(struct crypto_tfm* tfm){
-  struct cryptic_sha256_ctx* ctx = crypto_tfm_ctx(tfm);
+static void cryptic_cra_sha256_exit(struct crypto_shash* tfm){
+  struct cryptic_sha256_ctx* ctx = crypto_shash_ctx(tfm);
+  unsigned long irqflags;
+  
+  spin_lock_irqsave(&ctx->lock, irqflags);
   if (ctx->cryptic_data != NULL)
     kfree(ctx->cryptic_data);
 
   ctx->cryptic_data = NULL;
 
+  printk("cryptic: not deallocating fallback tfm");
   if (ctx->fallback != NULL)
     crypto_free_shash(ctx->fallback);
+    
+  spin_unlock_irqrestore(&ctx->lock, irqflags);
+  printk(KERN_ALERT "cryptic: cra_exit");
 }
 
 static int cryptic_submit_request(struct cryptic_desc_ctx* desc, struct cryptpb* cryptdata){
-  crypto_shash_update(&(desc->fallback), cryptdata->message, cryptdata->len);
-  return 0;
+	//cryptdata->message[cryptdata->len-1] = '\0';	
+	printk(KERN_ALERT "message[%d]: %s", cryptdata->len, cryptdata->message);
+  	crypto_shash_update(&(desc->fallback), cryptdata->message, cryptdata->len);
+  	return 0;
 }
 
 static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned int len){
@@ -97,82 +109,97 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
   struct cryptic_sha256_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
   struct cryptpb* cryptdata = (struct cryptpb*) crctx->cryptic_data;
   int ret;
-  u64 total, start, end, nbytes;
+  unsigned int total, start, nbytes;
   unsigned long irqflags;
-  u64 buflen = ctx->count % CRYPTIC_BUF_LEN;
-
+  unsigned int buflen = ctx->count % ((unsigned int)CRYPTIC_BUF_LEN);
+  int i = 0;
   /* DEBUG */
-  ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
-  printk(KERN_ALERT "cryptic: current buffer is %s\n", ctx->buf);
+  //ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
+  //printk(KERN_ALERT "cryptic: current buffer is %s\n", ctx->buf);
   /* END DEBUG */
   spin_lock_irqsave(&crctx->lock, irqflags);
-
+  printk(KERN_ALERT "sha_update: Acquired lock.");
+  
   total = buflen + len;
-  if (total < CRYPTIC_BUF_LEN){
+  if (total <= CRYPTIC_BUF_LEN){
     /*
       In this case the total message length is still lower than the minimum block size,
       append the new data to the buffer
     */
+    printk(KERN_ALERT "Copying %d bytes starting from %d", len, buflen);
     memcpy(ctx->buf+buflen, data, len);
     ctx->count += len;
     /* DEBUG */
-    ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
-    printk(KERN_ALERT "cryptic: finished update: current buffer is(%d) %s\n", ctx->count, ctx->buf);
+    //ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
+    //printk(KERN_ALERT "cryptic: finished update: current buffer is(%d) %s\n", ctx->count, ctx->buf);
     /* END DEBUG */
-    crypto_shash_update(&(ctx->fallback), data, len);
+    //crypto_shash_update(&(ctx->fallback), data, len);
+    printk(KERN_ALERT "Done. Returning from update");
     spin_unlock_irqrestore(&crctx->lock, irqflags);
     return 0;
   }
 
+	printk(KERN_ALERT "Total length larger than blocksize:");
   /*
     In this case the total length is larger than the block size, we will process
     N blocks and leave the leftover in the buffer.
   */
   /* Copy what was already present in the buffer */
   if (buflen > 0){
+	printk(KERN_ALERT "I am going to copy %d bytes from buf to message", buflen);
     memcpy(cryptdata->message, ctx->buf, buflen);
-    cryptdata->len = buflen;
+    printk(KERN_ALERT "Copied");
+    start = buflen;
   }
   else{
-    cryptdata->len = 0;
+  	printk(KERN_ALERT "No remaining data");
+    start = 0;
   }
   total -= buflen;
-  start = cryptdata->len;
+  
   do{
+  printk(KERN_ALERT "total= %d, start = %d", total, start);
   /* Copy the output digest into the device's partial digest (!!!CHECK!!!)*/
   memcpy(cryptdata->in_partial_digest, cryptdata->digest, SHA256_DIGEST_SIZE);
 
   /* The number of bytes of the current transfer is equal to the least between the
   remaining */
-  end = min_t(u64, CRYPTIC_BUF_LEN, start+total);
-
+  nbytes = min_t(unsigned int , (unsigned int)CRYPTIC_BUF_LEN, start + total);
+  start = 0;
   /* Truncate to a multiple of block size and update the leftover */
-  end &= ~(SHA256_BLOCK_SIZE-1);
-  nbytes = end-start; // end excluded
+  //end &= ~(SHA256_BLOCK_SIZE-1);
+  //nbytes = end-start; // end excluded
   total -= nbytes;
 
   /* Copy curr bytes to the device request */
-  memcpy(cryptdata->message + cryptdata->len, data, nbytes);
-  cryptdata->len += nbytes; // = end
+  printk(KERN_ALERT "I am going to copy %d bytes to message, whose length is %d", nbytes, cryptdata->len);
+  memcpy(cryptdata->message, data, nbytes);
+  cryptdata->len = CRYPTIC_BUF_LEN; // = end
 
   data += nbytes;
-  start = end;
-
+  
+  printk(KERN_ALERT "nbytes = %d, total = %d, crypdatalen=%d", nbytes, total, (unsigned int)(cryptdata->len));
+  
   /*  SEND REQUEST THROUGH USB */
+  printk(KERN_ALERT "Going to call submit_request");
   cryptic_submit_request(ctx, cryptdata);
-} while(total >= CRYPTIC_BUF_LEN);
+  i++;
+} while(total >= (unsigned int)CRYPTIC_BUF_LEN);
 
 if (total){
   /* Now copy the leftover into the buffer */
+  printk(KERN_ALERT "Going to copy %d bytes into buf from data", total);
   memcpy(ctx->buf, data, total);
 }
 ctx->count += len;
+printk(KERN_ALERT "count is now %d", ctx->count);
 
 memcpy(ctx->state, cryptdata->digest, SHA256_DIGEST_SIZE);
 /* DEBUG */
-ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
-printk(KERN_ALERT "cryptic: finished update: current buffer is(%d) %s\n", ctx->count, ctx->buf);
+//ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
+//printk(KERN_ALERT "cryptic: finished update: current buffer is(%d) %s\n", ctx->count, ctx->buf);
 /* END DEBUG */
+printk(KERN_ALERT "Going to release the spinlock");
 spin_unlock_irqrestore(&crctx->lock, irqflags);
 return 0;
 }
@@ -185,7 +212,7 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   struct cryptpb* cryptdata = (struct cryptpb*) crctx->cryptic_data;
   int i;
   unsigned long irqflags;
-  u64 buflen = ctx->count % CRYPTIC_BUF_LEN;
+  unsigned int buflen = (ctx->count) % ((unsigned int)CRYPTIC_BUF_LEN);
 
   spin_lock_irqsave(&crctx->lock, irqflags);
   if (ctx->count > CRYPTIC_BUF_LEN){
@@ -193,8 +220,8 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
     memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
   }
   /* DEBUG */
-  ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
-  printk(KERN_ALERT "cryptic: final: current buffer is %s\n", ctx->buf);
+  //ctx->buf[CRYPTIC_BUF_LEN-1] = '\0';
+  //printk(KERN_ALERT "cryptic: final: current buffer is (%d) %s\n", buflen, ctx->buf);
   /* END DEBUG */
   /* Now copy buffer and finalize */
   if (buflen){
@@ -207,12 +234,13 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
 
   /*DEBUG*/
   memcpy(cryptdata->digest, ctx->buf, SHA256_DIGEST_SIZE);
-  for(i=0; i<SHA256_DIGEST_SIZE-1; i++){
-    cryptdata->digest[i]++;
-  }
+  //for(i=0; i<SHA256_DIGEST_SIZE-1; i++){
+  //  cryptdata->digest[i]++;
+  //}
 
   /* Compute result using fallback */
-  crypto_shash_final(desc, cryptdata->digest);
+  printk(KERN_ALERT "cryptic: using fallback to calculate hash");
+  crypto_shash_final(&(ctx->fallback), cryptdata->digest);
   /* Copy result out */
   memcpy(out, cryptdata->digest, SHA256_DIGEST_SIZE);
 
@@ -238,6 +266,7 @@ static int cryptic_sha_init(struct shash_desc* desc){
   ctx->count = 0;
 
   /* Initialize fallback algorithm */
+  printk("cryptic: initializing fallback algorithm.");
   ctx->fallback.tfm = crctx->fallback;
   crypto_shash_init(&ctx->fallback);
 
@@ -267,17 +296,19 @@ static struct shash_alg alg_sha256 = {
   .digestsize = SHA256_DIGEST_SIZE, // =32, defined in crypto/sha2.h
   .statesize = sizeof (struct cryptic_desc_ctx),
   .descsize = sizeof (struct cryptic_desc_ctx),
+  .init_tfm = cryptic_cra_sha256_init,
+  .exit_tfm = cryptic_cra_sha256_exit,
   .base = {
               .cra_name = "sha256",
               .cra_driver_name = "cryptic-sha256",
               .cra_priority = 300,
-              .cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY, // hardware-accelerated but not in the ISA
+              .cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_NEED_FALLBACK, // hardware-accelerated but not in the ISA
               .cra_blocksize = SHA256_BLOCK_SIZE, // = 64
               .cra_ctxsize = sizeof(struct cryptic_sha256_ctx),
               /* cra_init: initialize the transformation object, this is called right after the
               transformation object is allocated */
-              .cra_init = cryptic_cra_sha256_init,
-              .cra_exit = cryptic_cra_sha256_exit,
+              //.cra_init = cryptic_cra_sha256_init,
+              //.cra_exit = cryptic_cra_sha256_exit,
               .cra_module = THIS_MODULE
 
   }
