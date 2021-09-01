@@ -10,7 +10,7 @@ COMPILER_DEFINITIONS := \
 COMPILER_FLAGS += -Werror -Wall ${COMPILER_DEFINITIONS}
 
 # Modules
-obj-m += usb/crypticusb.o
+obj-m += usb/crypticusb.o test/cryptotest.o
 CFLAGS_usb/crypticusb.o := ${COMPILER_FLAGS}
 all:
 	make -C "/lib/modules/$(shell uname -r)/build" "M=$(PWD)" modules
