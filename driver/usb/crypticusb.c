@@ -440,3 +440,9 @@ int crypticusb_isConnected(void) {
 
 MODULE_LICENSE("GPL v2");
 MODULE_DEVICE_TABLE(usb, crypticusb_devs_table);
+
+EXPORT_SYMBOL_GPL(crypticusb_send);
+EXPORT_SYMBOL_GPL(crypticusb_read);
+EXPORT_SYMBOL_GPL(crypticusb_init);
+EXPORT_SYMBOL_GPL(crypticusb_exit);
+EXPORT_SYMBOL_GPL(crypticusb_isConnected);

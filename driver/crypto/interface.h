@@ -2,11 +2,27 @@
   This header collects function that allow integration with the Linux Crypto api
   Based on nx_hash driver and via_padlock driver
 */
-#include <linux/stddef.h>
+#ifndef INTERFACE_H
+#define INTERFACE_H
+
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/slab.h>
+#include <linux/fs.h>
+#include <linux/errno.h>
+#include <linux/types.h>
+#include <linux/fcntl.h>
+#include <linux/cdev.h>
+#include <asm/uaccess.h>
+#include <crypto/internal/hash.h>
 #include <linux/crypto.h>
 #include <crypto/sha.h>
+#include <linux/stddef.h>
 
 #include "../usb/crypticusb.h"
+
+MODULE_LICENSE("Dual BSD/GPL");
 
 /* Defines */
 #define HASH_MAX_KEY_SIZE (SHA256_BLOCK_SIZE * 8)
@@ -49,11 +65,12 @@ struct cryptic_desc_ctx {
 };
 
 /* Function prototypes */
-static int cryptic_cra_sha256_init(struct crypto_shash *tfm);
-static void cryptic_cra_sha256_exit(struct crypto_shash* tfm);
-static int cryptic_submit_request(struct cryptic_desc_ctx* desc, struct cryptpb* cryptdata);
-static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned int len);
-static int cryptic_sha_final(struct shash_desc* desc, u8* out);
-static int cryptic_sha_init(struct shash_desc* desc);
-static int cryptic_sha256_register(void);
-static int cryptic_sha256_unregister(void);
+//static int cryptic_cra_sha256_init(struct crypto_shash *tfm);
+//static void cryptic_cra_sha256_exit(struct crypto_shash* tfm);
+//static int cryptic_submit_request(struct cryptic_desc_ctx* desc, struct cryptpb* cryptdata);
+//static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned int len);
+//static int cryptic_sha_final(struct shash_desc* desc, u8* out);
+//static int cryptic_sha_init(struct shash_desc* desc);
+int cryptic_sha256_register(void);
+int cryptic_sha256_unregister(void);
+#endif

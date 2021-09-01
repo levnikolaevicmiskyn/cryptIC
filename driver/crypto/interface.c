@@ -5,12 +5,12 @@
  **/
 static int cryptic_cra_sha256_init(struct crypto_shash *tfm){
   struct cryptic_sha256_ctx* ctx = crypto_shash_ctx(tfm);
+  struct crypto_shash* fallback_tfm = NULL;
   /* Check device state */
   if (!crypticusb_isConnected()){
       /* Setup a software callback */
       const char* fallback_alg_name = crypto_shash_alg_name(tfm);
       printk(KERN_ALERT "alg name: %s", fallback_alg_name);
-      struct crypto_shash* fallback_tfm;
       /* Allocate a fallback */
       fallback_tfm = crypto_alloc_shash(fallback_alg_name, 0, CRYPTO_ALG_NEED_FALLBACK);
       if (IS_ERR(fallback_tfm)){
@@ -58,7 +58,7 @@ static ssize_t cryptic_submit_request(struct cryptic_desc_ctx* desc, struct cryp
   }
   else{
     /* Try to communicate with device */
-    status = crypticusb_send(cryptdata, offsetof(cryptdata,digest));
+    status = crypticusb_send((char*)cryptdata, offsetof(struct cryptpb,digest));
     if (status >= 0){
       /* Read response */
       status = crypticusb_read(cryptdata->digest, SHA256_DIGEST_SIZE);
@@ -72,7 +72,7 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
   struct cryptic_desc_ctx* ctx = shash_desc_ctx(desc);
   struct cryptic_sha256_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
   struct cryptpb* cryptdata = (struct cryptpb*) crctx->cryptic_data;
-  int ret;
+  //int ret;
   unsigned int total, start = 0, nbytes;
   unsigned long irqflags;
   unsigned int buflen = ctx->count % ((unsigned int)CRYPTIC_BUF_LEN);
@@ -140,7 +140,7 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   struct cryptic_desc_ctx* ctx = shash_desc_ctx(desc);
   struct cryptic_sha256_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
   struct cryptpb* cryptdata = (struct cryptpb*) crctx->cryptic_data;
-  int i;
+  //int i;
   unsigned long irqflags;
   unsigned int buflen = (ctx->count) % ((unsigned int)CRYPTIC_BUF_LEN);
   ssize_t status = 0;
@@ -239,7 +239,7 @@ static struct shash_alg alg_sha256 = {
 					       }
 };
 
-static int cryptic_sha256_register(void){
+int cryptic_sha256_register(void){
   int ret = crypto_register_shash(&alg_sha256);
   if (ret < 0){
     printk(KERN_ALERT "cryptic: failed to register sha256.\n");
@@ -250,7 +250,11 @@ static int cryptic_sha256_register(void){
   return ret;
 }
 
-static int cryptic_sha256_unregister(void){
+int cryptic_sha256_unregister(void){
   crypto_unregister_shash(&alg_sha256);
   return 0;
 }
+
+
+EXPORT_SYMBOL(cryptic_sha256_register);
+EXPORT_SYMBOL(cryptic_sha256_unregister);

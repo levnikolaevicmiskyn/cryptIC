@@ -9,9 +9,22 @@ COMPILER_DEFINITIONS := \
 
 COMPILER_FLAGS += -Werror -Wall ${COMPILER_DEFINITIONS}
 
-# Modules
-obj-m += usb/crypticusb.o crypto/interface.o test/cryptotest.o
 CFLAGS_usb/crypticusb.o := ${COMPILER_FLAGS}
+CFLAGS_test/cryptotest.o := ${COMPILER_FLAGS}
+CFLAGS_crypto/interface.o := ${COMPILER_FLAGS}
+
+# Modules
+#ifneq ($(KERNELRELEASE),)
+#	obj-m := test/cryptotest.o
+#else
+#	KERNELDIR ?= /usr/src/linux-headers-$(shell uname -r)/
+#	PWD := $(shell pwd)
+#	
+#default:
+#	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
+#endif
+
+obj-m += crypto/interface.o usb/crypticusb.o test/cryptotest.o
 all:
 	make -C "/lib/modules/$(shell uname -r)/build" "M=$(PWD)" modules
 

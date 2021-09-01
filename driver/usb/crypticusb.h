@@ -29,6 +29,4 @@ ssize_t crypticusb_send(const char *buffer, size_t count);
 ssize_t crypticusb_read(char *buffer, size_t count);
 int crypticusb_isConnected(void);
 
-
-
 #endif //CRYPTIC_CRYPTICUSB_H
