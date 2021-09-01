@@ -63,6 +63,85 @@ static void crypticusb_delete(struct kref *kref) {
     kfree(dev);
     gdev = NULL;
 }
+static void crypticusb_write_bulk_callback(struct urb *urb) {
+    struct crypticusb_dev *dev;
+    unsigned long flags;
+
+    dev = urb->context;
+
+    /* Sync/async unlink faults aren't errors */
+    if (urb->status != 0) {
+        if (!(urb->status == -ENOENT ||
+              urb->status == -ECONNRESET ||
+              urb->status == -ESHUTDOWN)) {
+            dev_err(&dev->interface->dev, "%s - nonzero write bulk status received: %d\n", __func__, urb->status);
+        }
+        spin_lock_irqsave(&dev->err_lock, flags);
+        dev->errors = urb->status;
+        spin_unlock_irqrestore(&dev->err_lock, flags);
+    }
+
+    /* Free up allocated buffer */
+    usb_free_coherent(urb->dev, urb->transfer_buffer_length, urb->transfer_buffer, urb->transfer_dma);
+    up(&dev->limit_sem);
+}
+
+
+static void crypticusb_read_bulk_callback(struct urb *urb) {
+    struct crypticusb_dev *dev;
+    unsigned long flags;
+
+    dev = urb->context;
+
+    spin_lock_irqsave(&dev->err_lock, flags);
+    /* sync/async unlink faults aren't errors */
+    if (urb->status) {
+        if (!(urb->status == -ENOENT ||
+              urb->status == -ECONNRESET ||
+              urb->status == -ESHUTDOWN)) {
+            dev_err(&dev->interface->dev, "%s - nonzero write bulk status received: %d\n", __func__, urb->status);
+        }
+        dev->errors = urb->status;
+    } else {
+        dev->bulk_in_filled = urb->actual_length;
+    }
+    dev->ongoing_read = 0;
+    spin_unlock_irqrestore(&dev->err_lock, flags);
+
+    wake_up_interruptible(&dev->bulk_in_wait);
+}
+
+
+static int crypticusb_do_read_io(struct crypticusb_dev *dev, size_t count) {
+    int status;
+
+    /* Prepare a read USB Request Block (URB) */
+    usb_fill_bulk_urb(dev->bulk_in_urb,
+                      dev->udev,
+                      usb_rcvbulkpipe(dev->udev, dev->bulk_in_endpointAddr),
+                      dev->bulk_in_buffer,
+                      min(dev->bulk_in_size, count),
+                      crypticusb_read_bulk_callback,
+                      dev);
+    /* Acquire lock on URB */
+    spin_lock_irq(&dev->err_lock);
+    dev->ongoing_read = 1;
+    spin_unlock_irq(&dev->err_lock);
+
+    /* Submit bulk in urb */
+    dev->bulk_in_filled = 0;
+    dev->bulk_in_copied = 0;
+    status = usb_submit_urb(dev->bulk_in_urb, GFP_KERNEL);
+    if (status < 0) {
+        dev_err(&dev->interface->dev, "%s - failed submitting read urb, error %d\n", __func__, status);
+        status = status == -ENOMEM ? status : -EIO;
+        /* Signal read completion */
+        spin_lock_irq(&dev->err_lock);
+        dev->ongoing_read = 0;
+        spin_unlock_irq(&dev->err_lock);
+    }
+    return status;
+}
 
 /* Module functions */
 int crypticusb_init(void) {
@@ -124,8 +203,11 @@ static int crypticusb_probe(struct usb_interface *intf, const struct usb_device_
         return -ENOMEM;
     }
     dev->bulk_out_endpointAddr = bulk_out->bEndpointAddress;
-    /* Save data pointer in interface device and global pointer */
+    /* Save data pointer in interface device */
     usb_set_intfdata(intf, dev);
+    /* Increment usage count for device */
+    kref_get(&dev->kref);
+    /* Save to global pointer */
     gdev = dev;
     return 0;
 }
@@ -154,19 +236,206 @@ void crypticusb_disconnect(struct usb_interface *intf) {
 }
 
 ssize_t crypticusb_send(const char *buffer, size_t count) {
-    UNUSED(buffer);
-    UNUSED(count);
-    return 0;
+    struct crypticusb_dev *dev;
+    int status = 0;
+    struct urb *urb = NULL;
+    char *buf = NULL;
+    size_t writesize = min(count, (size_t) MAX_TRANSFER);
+
+    /* Check if buffer actually contains data */
+    if (count == 0)
+        return 0;
+
+    /* Retrieve device pointer */
+    if (!gdev) {
+        pr_err(CRYPTIC_DEV_NAME ": cannot write, device is disconnected\n");
+        return -ENODEV;
+    }
+    dev = gdev;
+
+    /* Limit the number of URBs in flight to stop a user from using up all RAM */
+    /*if (!(file->f_flags & O_NONBLOCK)) {
+        if (down_interruptible(&dev->limit_sem))
+            return -ERESTARTSYS;
+    } else {
+        if (down_trylock(&dev->limit_sem))
+            return -EAGAIN;
+    }*/
+
+    /* Check for errors */
+    spin_lock_irq(&dev->err_lock);
+    status = dev->errors;
+    if (status < 0) {
+        /* Clear the error but preserve notifications about reset */
+        dev->errors = 0;
+        status = (status == -EPIPE) ? status : -EIO;
+    }
+    spin_unlock_irq(&dev->err_lock);
+
+    if (status < 0) {
+        up(&dev->limit_sem);
+        return status;
+    }
+
+    /* Create a USB Request Block (URB) and its buffer */
+    urb = usb_alloc_urb(0, GFP_KERNEL);
+    if (!urb) {
+        up(&dev->limit_sem);
+        return -ENOMEM;
+    }
+    buf = usb_alloc_coherent(dev->udev, writesize, GFP_KERNEL, &urb->transfer_dma);
+    if (!buf) {
+        usb_free_coherent(dev->udev, writesize, buf, urb->transfer_dma);
+        usb_free_urb(urb);
+        up(&dev->limit_sem);
+        return -ENOMEM;
+    }
+    /* Copy data from user buffer to URB buffer */
+    status = copy_from_user(buf, buffer, writesize);
+    if (status != 0) {
+        usb_free_coherent(dev->udev, writesize, buf, urb->transfer_dma);
+        usb_free_urb(urb);
+        up(&dev->limit_sem);
+        return -EFAULT;
+    }
+
+    /* Check if device is still actually connected */
+    mutex_lock(&dev->io_mutex);
+    if (dev->disconnected) {
+        mutex_unlock(&dev->io_mutex);
+        usb_free_coherent(dev->udev, writesize, buf, urb->transfer_dma);
+        usb_free_urb(urb);
+        up(&dev->limit_sem);
+        return -ENODEV;
+    }
+
+    /* Initialize URB's other fields */
+    usb_fill_bulk_urb(urb, dev->udev, usb_sndbulkpipe(dev->udev, dev->bulk_out_endpointAddr), buf, writesize,
+                      crypticusb_write_bulk_callback, dev);
+    urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+    usb_anchor_urb(urb, &dev->submitted);
+
+    /* Send the data out the bulk port */
+    status = usb_submit_urb(urb, GFP_KERNEL);
+    mutex_unlock(&dev->io_mutex);
+    if (status != 0) {
+        dev_err(&dev->interface->dev, "%s - failed submitting write urb, error %d\n", __func__, status);
+        usb_unanchor_urb(urb);
+        usb_free_coherent(dev->udev, writesize, buf, urb->transfer_dma);
+        usb_free_urb(urb);
+        up(&dev->limit_sem);
+        return status;
+    }
+
+    /* Release current reference to this urb, the USB core will eventually free it entirely */
+    usb_free_urb(urb);
+    return writesize;
 }
 
 ssize_t crypticusb_read(char *buffer, size_t count) {
-    UNUSED(buffer);
-    UNUSED(count);
+    struct crypticusb_dev *dev;
+    int status;
+    bool ongoing_io;
+
+    /* Check if the request actually needs data */
+    if (!count)
+        return 0;
+    /* Retrieve device data */
+    if (!gdev) {
+        pr_err(CRYPTIC_DEV_NAME ": cannot read, device is disconnected\n");
+        return -ENODEV;
+    }
+    dev = gdev;
+
+    /* Lock mutex to prevent others from reading */
+    status = mutex_lock_interruptible(&dev->io_mutex);
+    if (status < 0)
+        return status;
+
+    if (dev->disconnected) {		/* disconnect() was called */
+        mutex_unlock(&dev->io_mutex);
+        return -ENODEV;
+    }
+
+    /* if IO is under way, we must not touch things */
+    retry:
+    spin_lock_irq(&dev->err_lock);
+    ongoing_io = dev->ongoing_read;
+    spin_unlock_irq(&dev->err_lock);
+
+    if (ongoing_io) {
+        /* nonblocking IO shall not wait */
+        /*if (file->f_flags & O_NONBLOCK) {
+            mutex_unlock(&dev->io_mutex);
+            return -EAGAIN;
+        }*/
+        /* IO may take forever, hence wait in an interruptible state */
+        status = wait_event_interruptible(dev->bulk_in_wait, (!dev->ongoing_read));
+        if (status < 0) {
+            mutex_unlock(&dev->io_mutex);
+            return status;
+        }
+    }
+
+    /* Errors must be reported */
+    status = dev->errors;
+    if (status < 0) {
+        /* Any error is reported once */
+        dev->errors = 0;
+        /* To check notifications about reset */
+        status = (status == -EPIPE) ? status : -EIO;
+        /* report it */
+        mutex_unlock(&dev->io_mutex);
+        return status;
+    }
+
+    /*
+     * if the buffer is filled we may satisfy the read
+     * else we need to start IO
+     */
+
+    if (dev->bulk_in_filled) {
+        /* we had read data */
+        size_t available = dev->bulk_in_filled - dev->bulk_in_copied;
+        size_t chunk = min(available, count);
+
+        if (!available) {
+            /* All data has been used. Actual IO needs to be done */
+            status = crypticusb_do_read_io(dev, count);
+            if (status < 0) {
+                mutex_unlock(&dev->io_mutex);
+                return status;
+            }
+            else
+                goto retry;
+        }
+        /* Data is available. Chunk tells us how much shall be copied */
+
+        if (copy_to_user(buffer, dev->bulk_in_buffer + dev->bulk_in_copied, chunk))
+            status = -EFAULT;
+        else
+            status = chunk;
+
+        dev->bulk_in_copied += chunk;
+
+        /* If we are asked for more than we have, we start IO but don't wait */
+        if (available < count)
+            crypticusb_do_read_io(dev, count - chunk);
+    } else {
+        /* no data in the buffer */
+        status = crypticusb_do_read_io(dev, count);
+        if (status < 0) {
+            mutex_unlock(&dev->io_mutex);
+            return status;
+        }
+        else
+            goto retry;
+    }
     return 0;
 }
 
 int crypticusb_isConnected(void) {
-    return !gdev->disconnected;
+    return !gdev && !gdev->disconnected;
 }
 
 MODULE_LICENSE("GPL v2");
