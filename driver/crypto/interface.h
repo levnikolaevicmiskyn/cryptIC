@@ -6,7 +6,7 @@
 #include <linux/crypto.h>
 #include <crypto/sha.h>
 
-#include "crypticusb.h"
+#include "../usb/crypticusb.h"
 
 /* Defines */
 #define HASH_MAX_KEY_SIZE (SHA256_BLOCK_SIZE * 8)

@@ -10,7 +10,7 @@
 #include <asm/uaccess.h>
 #include <crypto/internal/hash.h>
 
-#include "interface.h"
+#include "../crypto/interface.h"
 
 
 MODULE_LICENSE("Dual BSD/GPL");
