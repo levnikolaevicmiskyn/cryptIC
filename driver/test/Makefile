@@ -8,12 +8,17 @@ COMPILER_DEFINITIONS := \
 	-DCRYPTIC_DEV_PRODUCT_ID=${CRYPTIC_DEV_PRODUCT_ID}
 
 COMPILER_FLAGS += -Werror -Wall ${COMPILER_DEFINITIONS}
+CFLAGS_usb/cryptotest.o := ${COMPILER_FLAGS}
 
-# Modules
-obj-m += usb/crypticusb.o crypto/interface.o test/cryptotest.o
-CFLAGS_usb/crypticusb.o := ${COMPILER_FLAGS}
-all:
-	make -C "/lib/modules/$(shell uname -r)/build" "M=$(PWD)" modules
+ifneq ($(KERNELRELEASE),)
+	obj-m := cryptotest.o
+else
+	KERNELDIR ?= /usr/src/linux-headers-$(shell uname -r)/
+	PWD := $(shell pwd)
+
+default:
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
+endif
 
 clean:
-	$(RM) *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.mod *.symvers *.order
+	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions
