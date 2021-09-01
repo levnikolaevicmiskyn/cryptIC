@@ -1,10 +1,12 @@
-#include <linux/crypto.h>
 /*
   This header collects function that allow integration with the Linux Crypto api
   Based on nx_hash driver and via_padlock driver
 */
+#include <linux/stddef.h>
 #include <linux/crypto.h>
 #include <crypto/sha.h>
+
+#include "crypticusb.h"
 
 /* Defines */
 #define HASH_MAX_KEY_SIZE (SHA256_BLOCK_SIZE * 8)
@@ -15,8 +17,8 @@
 struct cryptpb{
   u8 message[CRYPTIC_BUF_LEN];
   u8 in_partial_digest[SHA256_DIGEST_SIZE];
-  u8 digest[SHA256_DIGEST_SIZE];
   unsigned int len;
+  u8 digest[SHA256_DIGEST_SIZE];
 };
 
 /* Hash context structure */
@@ -43,6 +45,7 @@ struct cryptic_desc_ctx {
 
   /* Fallback */
   struct shash_desc fallback;
+  unsigned int use_fallback;
 };
 
 /* Function prototypes */

@@ -6,23 +6,24 @@
 static int cryptic_cra_sha256_init(struct crypto_shash *tfm){
   struct cryptic_sha256_ctx* ctx = crypto_shash_ctx(tfm);
   /* Check device state */
-  //  if (cryptic_driver.of.status != CRYPTIC_OK){
-  //    printk(KERN_ALERT "Cannot initialize a crypto context until the device is ready\n");
-  //    return -ENODEV;
-  //
-  /* Setup a software callback */
-  const char* fallback_alg_name = crypto_shash_alg_name(tfm);
-  printk(KERN_ALERT "alg name: %s", fallback_alg_name);
-  struct crypto_shash* fallback_tfm;
-  /* Allocate a fallback */
-  fallback_tfm = crypto_alloc_shash(fallback_alg_name, 0, CRYPTO_ALG_NEED_FALLBACK);
-  if (IS_ERR(fallback_tfm)){
-    printk(KERN_ALERT "cryptic: cannot allocate a fallback algorithm");
-    return PTR_ERR(fallback_tfm);
-  }
+  if (!crypticusb_isConnected()){
+      /* Setup a software callback */
+      const char* fallback_alg_name = crypto_shash_alg_name(tfm);
+      printk(KERN_ALERT "alg name: %s", fallback_alg_name);
+      struct crypto_shash* fallback_tfm;
+      /* Allocate a fallback */
+      fallback_tfm = crypto_alloc_shash(fallback_alg_name, 0, CRYPTO_ALG_NEED_FALLBACK);
+      if (IS_ERR(fallback_tfm)){
+          printk(KERN_ALERT "cryptic: cannot allocate a fallback algorithm");
+          return PTR_ERR(fallback_tfm);
+      }
 
-  ctx->fallback = fallback_tfm;
-  tfm->descsize += crypto_shash_descsize(fallback_tfm);
+      ctx->fallback = fallback_tfm;
+      tfm->descsize += crypto_shash_descsize(fallback_tfm);
+    }
+    else{
+      ctx->fallback = NULL;
+    }
 
   /* Initialize spinlock to protect access to the context */
   spin_lock_init(&ctx->lock);
@@ -49,10 +50,22 @@ static void cryptic_cra_sha256_exit(struct crypto_shash* tfm){
   spin_unlock_irqrestore(&ctx->lock, irqflags);
 }
 
-static int cryptic_submit_request(struct cryptic_desc_ctx* desc, struct cryptpb* cryptdata){
-  /* IMPLEMENT COMM WITH DEVICE */
-  crypto_shash_update(&(desc->fallback), cryptdata->message, cryptdata->len);
-  return 0;
+static ssize_t cryptic_submit_request(struct cryptic_desc_ctx* desc, struct cryptpb* cryptdata){
+  ssize_t status = 0;
+  if (desc->use_fallback){
+    /* Device was unavailable at context creation time, resort to the software fallback */
+    crypto_shash_update(&(desc->fallback), cryptdata->message, cryptdata->len);
+  }
+  else{
+    /* Try to communicate with device */
+    status = crypticusb_send(cryptdata, offsetof(cryptdata,digest));
+    if (status >= 0){
+      /* Read response */
+      status = crypticusb_read(cryptdata->digest, SHA256_DIGEST_SIZE);
+    }
+  }
+
+  return status;
 }
 
 static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned int len){
@@ -106,7 +119,7 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
 
     data += nbytes;
 
-    /*  SEND REQUEST THROUGH USB */
+    /*  FIXME: check the return value */
     cryptic_submit_request(ctx, cryptdata);
   } while(total >= (unsigned int)CRYPTIC_BUF_LEN);
 
@@ -130,6 +143,7 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   int i;
   unsigned long irqflags;
   unsigned int buflen = (ctx->count) % ((unsigned int)CRYPTIC_BUF_LEN);
+  ssize_t status = 0;
 
   spin_lock_irqsave(&crctx->lock, irqflags);
   if (ctx->count > CRYPTIC_BUF_LEN){
@@ -142,18 +156,19 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
     cryptdata->len = buflen;
 
     /* SEND REQUEST THROUGH USB */
-    cryptic_submit_request(ctx, cryptdata);
+    status = cryptic_submit_request(ctx, cryptdata);
   }
 
-  memcpy(cryptdata->digest, ctx->buf, SHA256_DIGEST_SIZE);
+  //memcpy(cryptdata->digest, ctx->buf, SHA256_DIGEST_SIZE);
 
-  /* Compute result using fallback */
-  crypto_shash_final(&(ctx->fallback), cryptdata->digest);
+  /* Compute result using fallback if applicable*/
+  if (ctx->use_fallback)
+    crypto_shash_final(&(ctx->fallback), cryptdata->digest);
   /* Copy result out */
   memcpy(out, cryptdata->digest, SHA256_DIGEST_SIZE);
 
   spin_unlock_irqrestore(&crctx->lock, irqflags);
-  return 0;
+  return (status>=0 ? 0 : -1);
 }
 
 static int cryptic_sha_init(struct shash_desc* desc){
@@ -172,10 +187,14 @@ static int cryptic_sha_init(struct shash_desc* desc){
 
   ctx->count = 0;
 
-  /* Initialize fallback algorithm */
-  ctx->fallback.tfm = crctx->fallback;
-  crypto_shash_init(&ctx->fallback);
-
+  /* Initialize fallback algorithm if applicable */
+  if (crctx->fallback != NULL){
+    ctx->fallback.tfm = crctx->fallback;
+    crypto_shash_init(&ctx->fallback);
+    ctx->use_fallback = 1;
+  } else{
+    ctx->use_fallback = 0;
+  }
   return 0;
 }
 
