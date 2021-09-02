@@ -17,8 +17,13 @@
 #include <asm/uaccess.h>
 #include <crypto/internal/hash.h>
 #include <linux/crypto.h>
-#include <crypto/sha.h>
 #include <linux/stddef.h>
+
+#ifdef SPLIT_SHA_HEADER
+#include <crypto/sha2.h>
+#else
+#include <crypto/sha.h>
+#endif
 
 #include "../usb/crypticusb.h"
 

@@ -1,3 +1,13 @@
+# Project tree
+SUBDIRS := . crypto usb
+SUBDIRSCLEAN := $(addsuffix clean,$(SUBDIRS))
+
+# Determine kernel version
+KERNEL_VERSION := $(shell uname -r)
+KERNEL_VMAJ    := $(shell echo ${KERNEL_VERSION} | sed -e 's/^\([0-9][0-9]*\)\.[0-9][0-9]*\.[0-9][0-9]*.*/\1/')
+KERNEL_VMIN    := $(shell echo ${KERNEL_VERSION} | sed -e 's/^[0-9][0-9]*\.\([0-9][0-9]*\)\.[0-9][0-9]*.*/\1/')
+KERNEL_VPATCH  := $(shell echo ${KERNEL_VERSION} | sed -e 's/^[0-9][0-9]*\.[0-9][0-9]*\.\([0-9][0-9]*\).*/\1/')
+
 # Compiler definitions
 CRYPTIC_DEV_VENDOR_ID := 0x1a86
 CRYPTIC_DEV_PRODUCT_ID := 0x7523
@@ -7,26 +17,27 @@ COMPILER_DEFINITIONS := \
 	-DCRYPTIC_DEV_VENDOR_ID=${CRYPTIC_DEV_VENDOR_ID} \
 	-DCRYPTIC_DEV_PRODUCT_ID=${CRYPTIC_DEV_PRODUCT_ID}
 
+ifeq ($(shell expr ${KERNEL_VMIN} \> 10), 1)
+	COMPILER_DEFINITIONS += -DSPLIT_SHA_HEADER
+endif
+
 COMPILER_FLAGS += -Werror -Wall ${COMPILER_DEFINITIONS}
 
 CFLAGS_usb/crypticusb.o := ${COMPILER_FLAGS}
-CFLAGS_test/cryptotest.o := ${COMPILER_FLAGS}
 CFLAGS_crypto/interface.o := ${COMPILER_FLAGS}
+CFLAGS_cryptic.o := ${COMPILER_FLAGS}
 
 # Modules
-#ifneq ($(KERNELRELEASE),)
-#	obj-m := test/cryptotest.o
-#else
-#	KERNELDIR ?= /usr/src/linux-headers-$(shell uname -r)/
-#	PWD := $(shell pwd)
-#	
-#default:
-#	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
-#endif
+obj-m += crypto/interface.o usb/crypticusb.o cryptic.o
 
-obj-m += crypto/interface.o usb/crypticusb.o test/cryptotest.o
+# Targets
 all:
-	make -C "/lib/modules/$(shell uname -r)/build" "M=$(PWD)" modules
+	make -C "/lib/modules/${KERNEL_VERSION}/build" "M=$(PWD)" modules
 
-clean:
+clean: $(SUBDIRSCLEAN)
+
+clean_current_dir:
 	$(RM) *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.mod *.symvers *.order
+
+%clean: %
+	$(MAKE) -C $< -f $(PWD)/Makefile clean_current_dir

@@ -1,5 +1,6 @@
 # Ignore compiled files
 *.o
+*.d
 *.ko
 *.cmd
 *.symvers

@@ -1,0 +1,40 @@
+#!/bin/bash
+
+subcommand() {
+     # Run the command and indent it but return the original exit status
+     $@ |& sed 's/^/    /'
+     return ${PIPESTATUS[0]}
+}
+
+echo "This will uninstall cryptIC driver and its components."
+read -r -p "Do you wish to continue? [y/N] " response
+echo ""
+if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]
+then
+    echo -e "Uninstallation cancelled, quitting"
+    exit 0
+fi
+sudo -v
+
+# Remove installed modules
+echo "Removing modules"
+modules=(cryptic interface crypticusb)
+for module in ${modules[@]}
+do
+    subcommand sudo rmmod "$module"
+    if (( $? != 0 ))
+    then
+        subcommand echo "ERROR: could not remove module '$module'. A system reboot may be necessary"
+    else
+        subcommand echo "- Removed '$module'"
+    fi
+done
+echo "Done!"
+
+# Clean compilation files
+cd driver
+echo "Cleaning compilation files"
+subcommand make clean
+echo "Done!"
+
+exit 0

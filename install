@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# Function to run subcommands with indented outputs
+subcommand() {
+     # Run the command and indent it but return the original exit status
+     $@ |& sed 's/^/    /'
+     return ${PIPESTATUS[0]}
+}
+
+echo "This program will install the cryptIC module in your Linux kernel.
+
+Please be aware that cryptIC is newly developed by students and may contain
+errors or bugs which can be harmful to your system. By proceeding with the
+installation, you agree to take full responsibility of your own system and
+its components.
+"
+
+read -r -p "Do you wish to continue? [y/N] " response
+echo ""
+if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]
+then
+    echo -e "Installation cancelled, quitting"
+    exit 0
+fi
+
+# Require sudo permissions
+sudo -v
+
+# Compile modules
+cd "driver/"
+echo "Compiling cryptIC modules..."
+subcommand make
+if (( $? != 0 ))
+then
+    echo "Compilation failed, cleaning up and quitting"
+    subcommand make clean
+    echo "Done!"
+    exit 1
+fi
+echo "Done!"
+cd ..
+
+# Install in the right order
+modules=(driver/crypto/interface.ko driver/usb/crypticusb.ko driver/cryptic.ko)
+inserted_modules=()
+for module in ${modules[@]}
+do
+    subcommand sudo insmod ${module}
+    if (( $? != 0 ))
+    then
+        # insmod failed
+        echo "Could not insert module '${module}'. Removing inserted modules (if any) and quitting."
+        for inserted_module in ${inserted_modules[@]}
+        do
+            subcommand sudo rmmod ${inserted_module}
+            subcommand echo "- Removed ${inserted_module}"
+        done
+        echo "Done!"
+        exit 1
+    fi
+    subcommand echo "+ Inserted ${module}"
+    inserted_modules+="${module}"
+done
+echo "Done!"
+echo "Installation is complete, enjoy your hashing!"
+exit 0
