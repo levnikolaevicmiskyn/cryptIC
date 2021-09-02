@@ -435,7 +435,7 @@ ssize_t crypticusb_read(char *buffer, size_t count) {
 }
 
 int crypticusb_isConnected(void) {
-    return !gdev && !gdev->disconnected;
+    return gdev != NULL && !gdev->disconnected;
 }
 
 MODULE_LICENSE("GPL v2");
