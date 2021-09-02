@@ -37,7 +37,7 @@ all:
 clean: $(SUBDIRSCLEAN)
 
 clean_current_dir:
-	$(RM) *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.mod *.symvers *.order
+	$(RM) *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.mod *.symvers *.order .*.d
 
 %clean: %
 	$(MAKE) -C $< -f $(PWD)/Makefile clean_current_dir

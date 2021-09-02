@@ -41,7 +41,8 @@ echo "Done!"
 cd ..
 
 # Install in the right order
-modules=(driver/crypto/interface.ko driver/usb/crypticusb.ko driver/cryptic.ko)
+echo "Inserting modules..."
+modules=(driver/usb/crypticusb.ko driver/crypto/interface.ko driver/cryptic.ko)
 inserted_modules=()
 for module in ${modules[@]}
 do
