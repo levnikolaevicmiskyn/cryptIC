@@ -1,4 +1,4 @@
-#include "interface.h"
+#include "crypticintf.h"
 
 /**
  * cryptic_ctx_init: initialization function for a Crypto API context

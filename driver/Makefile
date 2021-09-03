@@ -24,11 +24,11 @@ endif
 COMPILER_FLAGS += -Werror -Wall ${COMPILER_DEFINITIONS}
 
 CFLAGS_usb/crypticusb.o := ${COMPILER_FLAGS}
-CFLAGS_crypto/interface.o := ${COMPILER_FLAGS}
+CFLAGS_crypto/crypticintf.o := ${COMPILER_FLAGS}
 CFLAGS_cryptic.o := ${COMPILER_FLAGS}
 
 # Modules
-obj-m += crypto/interface.o usb/crypticusb.o cryptic.o
+obj-m += crypto/crypticintf.o usb/crypticusb.o cryptic.o
 
 # Targets
 all:
