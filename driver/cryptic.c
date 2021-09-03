@@ -16,25 +16,25 @@
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("cryptic");
 
-int cryptic_init_module(void){
-  // Register algorithm
-  int status;
-  /* Initialize usb driver */
-  status = crypticusb_init();
-  /* If successful, register crypto alg */
-  if (status == 0)
-    status = cryptic_sha256_register();
+int cryptic_init_module(void) {
+    // Register algorithm
+    int status;
+    /* Initialize usb driver */
+    status = crypticusb_init();
+    /* If successful, register crypto alg */
+    if (status == 0)
+        status = cryptic_sha256_register();
 
-  printk(KERN_ALERT "cryptic: driver init function. status = %d\n", status);
-  return status;
+    pr_info("cryptIC: common driver initialized with status %d\n", status);
+    return status;
 }
 
-void cryptic_cleanup(void){
-  // Unregister algorithm
-  cryptic_sha256_unregister();
+void cryptic_cleanup(void) {
+    // Unregister algorithm
+    cryptic_sha256_unregister();
 
-  // Unregister usb
-  crypticusb_exit();
+    // Unregister usb
+    crypticusb_exit();
 }
 
 module_init(cryptic_init_module);

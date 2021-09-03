@@ -208,6 +208,7 @@ static int crypticusb_probe(struct usb_interface *intf, const struct usb_device_
     /* Increment usage count for device */
     kref_get(&dev->kref);
     /* Save to global pointer */
+    dev_info(&intf->dev, CRYPTIC_DEV_NAME " connected");
     gdev = dev;
     return 0;
 }
@@ -231,7 +232,7 @@ void crypticusb_disconnect(struct usb_interface *intf) {
 
     /* Decrement usage count */
     kref_put(&dev->kref, crypticusb_delete);
-    dev_info(&intf->dev, CRYPTIC_DEV_NAME " now disconnected");
+    dev_info(&intf->dev, CRYPTIC_DEV_NAME " disconnected");
     gdev = NULL;
 }
 

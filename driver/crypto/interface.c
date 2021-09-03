@@ -10,18 +10,19 @@ static int cryptic_cra_sha256_init(struct crypto_shash *tfm){
   if (!crypticusb_isConnected()){
       /* Setup a software callback */
       const char* fallback_alg_name = crypto_shash_alg_name(tfm);
-      printk(KERN_ALERT "alg name: %s", fallback_alg_name);
+      pr_info("cryptIC: device not detected, registering fallback algorithm %s", fallback_alg_name);
       /* Allocate a fallback */
       fallback_tfm = crypto_alloc_shash(fallback_alg_name, 0, CRYPTO_ALG_NEED_FALLBACK);
       if (IS_ERR(fallback_tfm)){
-          printk(KERN_ALERT "cryptic: cannot allocate a fallback algorithm");
+          pr_err("cryptIC: cannot allocate a fallback algorithm");
           return PTR_ERR(fallback_tfm);
       }
 
       ctx->fallback = fallback_tfm;
       tfm->descsize += crypto_shash_descsize(fallback_tfm);
     }
-    else{
+    else {
+      pr_info("cryptIC: device detected, using it as accelerator");
       ctx->fallback = NULL;
     }
 
@@ -242,10 +243,10 @@ static struct shash_alg alg_sha256 = {
 int cryptic_sha256_register(void){
   int ret = crypto_register_shash(&alg_sha256);
   if (ret < 0){
-    printk(KERN_ALERT "cryptic: failed to register sha256.\n");
+    pr_err("cryptIC: failed to register sha256.\n");
   }
   else{
-    printk(KERN_ALERT "cryptic: sha256 registered successfully.\n");
+    pr_info("cryptIC: sha256 registered successfully.\n");
   }
   return ret;
 }
