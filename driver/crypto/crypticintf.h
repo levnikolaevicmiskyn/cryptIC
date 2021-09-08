@@ -65,8 +65,9 @@ struct cryptic_desc_ctx {
   u8 buf[CRYPTIC_BUF_LEN];
 
   /* Fallback */
-  struct shash_desc fallback;
+  
   unsigned int use_fallback;
+  struct shash_desc fallback;
 };
 
 /* Function prototypes */

@@ -169,6 +169,7 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   memcpy(out, cryptdata->digest, SHA256_DIGEST_SIZE);
 
   spin_unlock_irqrestore(&crctx->lock, irqflags);
+  printk(KERN_ALERT "cryptIC: it's me");
   return (status>=0 ? 0 : -1);
 }
 
