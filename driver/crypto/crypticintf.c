@@ -60,9 +60,11 @@ static ssize_t cryptic_submit_request(struct cryptic_desc_ctx* desc, struct cryp
   else{
     /* Try to communicate with device */
     status = crypticusb_send((char*)cryptdata, offsetof(struct cryptpb,digest));
+    printk(KERN_ALERT "cryptIC: Sent %d bytes over usb.", status);
     if (status >= 0){
       /* Read response */
       status = crypticusb_read(cryptdata->digest, SHA256_DIGEST_SIZE);
+      printk(KERN_ALERT "cryptIC: read %d bytes from usb.", status);
     }
   }
 
