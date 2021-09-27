@@ -254,15 +254,6 @@ ssize_t crypticusb_send(const char *buffer, size_t count) {
     }
     dev = gdev;
 
-    /* Limit the number of URBs in flight to stop a user from using up all RAM */
-    /*if (!(file->f_flags & O_NONBLOCK)) {
-        if (down_interruptible(&dev->limit_sem))
-            return -ERESTARTSYS;
-    } else {
-        if (down_trylock(&dev->limit_sem))
-            return -EAGAIN;
-    }*/
-
     /* Check for errors */
     spin_lock_irq(&dev->err_lock);
     status = dev->errors;
@@ -291,14 +282,8 @@ ssize_t crypticusb_send(const char *buffer, size_t count) {
         up(&dev->limit_sem);
         return -ENOMEM;
     }
-    /* Copy data from user buffer to URB buffer */
-    status = copy_from_user(buf, buffer, writesize);
-    if (status != 0) {
-        usb_free_coherent(dev->udev, writesize, buf, urb->transfer_dma);
-        usb_free_urb(urb);
-        up(&dev->limit_sem);
-        return -EFAULT;
-    }
+    /* Copy data from buffer to URB buffer */
+    memcpy(buf, buffer, writesize);
 
     /* Check if device is still actually connected */
     mutex_lock(&dev->io_mutex);
@@ -365,11 +350,6 @@ ssize_t crypticusb_read(char *buffer, size_t count) {
     spin_unlock_irq(&dev->err_lock);
 
     if (ongoing_io) {
-        /* nonblocking IO shall not wait */
-        /*if (file->f_flags & O_NONBLOCK) {
-            mutex_unlock(&dev->io_mutex);
-            return -EAGAIN;
-        }*/
         /* IO may take forever, hence wait in an interruptible state */
         status = wait_event_interruptible(dev->bulk_in_wait, (!dev->ongoing_read));
         if (status < 0) {
@@ -412,10 +392,8 @@ ssize_t crypticusb_read(char *buffer, size_t count) {
         }
         /* Data is available. Chunk tells us how much shall be copied */
 
-        if (copy_to_user(buffer, dev->bulk_in_buffer + dev->bulk_in_copied, chunk))
-            status = -EFAULT;
-        else
-            status = chunk;
+        memcpy(buffer, dev->bulk_in_buffer + dev->bulk_in_copied, chunk);
+        status = chunk;
 
         dev->bulk_in_copied += chunk;
 
@@ -432,7 +410,8 @@ ssize_t crypticusb_read(char *buffer, size_t count) {
         else
             goto retry;
     }
-    return 0;
+    mutex_unlock(&dev->io_mutex);
+    return status;
 }
 
 int crypticusb_isConnected(void) {

@@ -52,22 +52,26 @@ static void cryptic_cra_sha256_exit(struct crypto_shash* tfm){
 }
 
 static ssize_t cryptic_submit_request(struct cryptic_desc_ctx* desc, struct cryptpb* cryptdata){
-  ssize_t status = 0;
-  if (desc->use_fallback){
-    /* Device was unavailable at context creation time, resort to the software fallback */
-    crypto_shash_update(&(desc->fallback), cryptdata->message, cryptdata->len);
-  }
-  else{
-    /* Try to communicate with device */
-    status = crypticusb_send((char*)cryptdata, offsetof(struct cryptpb,digest));
-    printk(KERN_ALERT "cryptIC: Sent %ld bytes over usb.", status);
-    if (status >= 0){
-      /* Read response */
-      status = crypticusb_read(cryptdata->digest, SHA256_DIGEST_SIZE);
-      printk(KERN_ALERT "cryptIC: read %ld bytes from usb.", status);
+    ssize_t status = 0;
+    if (desc->use_fallback) {
+        /* Device was unavailable at context creation time, resort to the software fallback */
+        crypto_shash_update(&(desc->fallback), cryptdata->message, cryptdata->len);
+    } else {
+        /* Try to communicate with device */
+        status = crypticusb_send((char *) cryptdata, offsetof(struct cryptpb,digest));
+        if (status >= 0) {
+            pr_info("cryptIC: sent %ld bytes over usb\n", status);
+            /* Read response */
+            status = crypticusb_read(cryptdata->digest, SHA256_DIGEST_SIZE);
+            if (status >= 0)
+                pr_info("cryptIC: read %ld bytes from usb.", status);
+            else
+                pr_err("cryptIC: USB reading failed with error %ld", status);
+        } else {
+            pr_err("cryptIC: USB sending failed with error %ld. Using fallback", status);
+            crypto_shash_update(&(desc->fallback), cryptdata->message, cryptdata->len);
+        }
     }
-  }
-
   return status;
 }
 
