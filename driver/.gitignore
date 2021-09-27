@@ -1,0 +1,9 @@
+# Ignore compiled files
+*.o
+*.d
+*.ko
+*.cmd
+*.symvers
+*.order
+*.mod
+*.mod.c
