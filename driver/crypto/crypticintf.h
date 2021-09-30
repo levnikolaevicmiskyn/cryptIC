@@ -38,7 +38,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 struct cryptpb{
   u8 message[CRYPTIC_BUF_LEN];
   u8 in_partial_digest[SHA256_DIGEST_SIZE];
-  unsigned int len;
+  u32 len;
   u8 digest[SHA256_DIGEST_SIZE];
 };
 
