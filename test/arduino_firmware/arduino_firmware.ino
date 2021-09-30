@@ -187,6 +187,7 @@ void sha256(SHA256_CTX *ctx, const BYTE data[], size_t len, BYTE hash[])
 }
 
 /* Arduino code **************************************************************/
+#define PIN_LED 13
 const unsigned rx_data_size = offsetof(CryptICData, digest);
 
 CryptICData data;
@@ -195,21 +196,23 @@ void setup() {
 	Serial.begin(9600);
   Serial.setTimeout(5000);
   Serial.println(rx_data_size);
+  // Pin for status signalling
+  pinMode(PIN_LED, OUTPUT);
 }
 
 
 void loop() {
-	// Wait until serial data: received packet size is known
-	while (Serial.available() < rx_data_size);
-
   // Receive data
+  while (Serial.available() <= 0);
+  
   Serial.readBytes((byte*) &data, rx_data_size);
-	
+  digitalWrite(PIN_LED, HIGH);
+  
 	//Compute the sha256 of the received string
 	SHA256_CTX ctx;
   sha256(&ctx, data.message, data.len, data.digest);  
     
 	//Write the result on USB
-  Serial.write((byte*) data.digest, SHA256_BLOCK_SIZE);
-  Serial.flush();
+  Serial.write((byte*) data.digest, SHA256_DIGEST_SIZE);
+  digitalWrite(PIN_LED, LOW);
 }
