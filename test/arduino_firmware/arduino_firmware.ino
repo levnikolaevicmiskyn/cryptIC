@@ -7,9 +7,8 @@
 #include <stdlib.h>
 
 /****************************** MACROS ******************************/
-#define SHA256_BLOCK_SIZE 32            // SHA256 outputs a 32 byte digest
-#define SHA256_DIGEST_SIZE SHA256_BLOCK_SIZE
-#define HASH_MAX_KEY_SIZE (SHA256_BLOCK_SIZE * 8)
+#define SHA256_BLOCK_SIZE 64            
+#define SHA256_DIGEST_SIZE 32
 #define CRYPTIC_N_BLOCKS 2
 #define CRYPTIC_BUF_LEN SHA256_BLOCK_SIZE*CRYPTIC_N_BLOCKS
 
