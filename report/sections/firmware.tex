@@ -1,18 +1,18 @@
 \section{Firmware}
-We wanted to emulate the hardware accelerator that performs the cryptographic functions with an external microcontroller that communicates with the PC through the USB port. The firmware that controls the device performs the functions of serial interface by taking data and returning the results on the same. 
+We wanted to emulate the hardware accelerator that performs the cryptographic functions with an external microcontroller that communicates with the PC through the USB port. The firmware that controls the device performs the functions of a serial interface by reading data and returning the results on the same port.
 
 The computation of the SHA-256 algorithm on the input data follows the procedure seen in the previous section. The algorithm was divided into three main functions, the first to initialize the variables, the second to execute the main loop of the algorithm, and the last to rewrite the data in big-endian encoding, since the algorithm uses little-endian data.
 
 The main loop algorithm is as follows
 \begin{lstlisting}
 for i from 16 to 63
-s0 := (w[i-15] rightrotate 7) xor (w[i-15] rightrotate 18) xor (w[i-15] rightshift 3)
-s1 := (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19) xor (w[i-2] rightshift 10)
+s0 := (w[i-15] RROT 7) xor (w[i-15] RROT 18) xor (w[i-15] RSHIFT 3)
+s1 := (w[i-2] RROT 17) xor (w[i-2] RROT 19) xor (w[i-2] RSHIFT 10)
 for i from 0 to 63
-s0 := (a rightrotate 2) xor (a rightrotate 13) xor (a rightrotate 22)
+s0 := (a RROT 2) xor (a RROT 13) xor (a RROT 22)
 maj := (a and b) xor (a and c) xor (b and c)
 t2 := s0 + maj
-s1 := (e rightrotate 6) xor (e rightrotate 11) xor (e rightrotate 25)
+s1 := (e RROT 6) xor (e RROT 11) xor (e RROT 25)
 ch := (e and f) xor ((not e) and g)
 t1 := h + s1 + ch + k[i] + w[i]
 
