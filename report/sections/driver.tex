@@ -4,6 +4,36 @@ The driver is the agent responsible to bridge the high level user interface offe
 It is internally organized in two interface-like modules, each implementing a portion of the core functionalities, and the top-level driver to initialize the submodules and to implement the standard Linux driver facilities. The two submodules are the Cryptographic Interface Driver to integrate CryptIC with the Linux Cryptographic API, and the USB Driver to handle USB requests and communications.
 
 \subsection{Cryptographic Interface Driver}
+On the software side, this device exposes its functionality through the Linux Kernel Crypto API. Thanks to this standardized interface, consumer applications in both kernel and user space become able to use cryptIC through an abstraction layer.
+
+The Crypto API allows the possibility to register message digest algorithms such as the SHA256 implemented in cryptIC. Such algorithms are expected to provide a predefined set of functions:
+\begin{itemize}
+\item \textit{init(struct shash\_desc* desc)}: This function initializes the hash context, that is a structure of type \texttt{struct cryptic\_desc\_ctx} containing the current hash state (internal registers), a temporary data buffer (\texttt{buf}) and its length in bytes (\texttt{count}).
+\item \textit{update(struct shash\_desc* desc, const u8* data, unsigned int len)}: this function pushes \texttt{len} bytes into the transformation. The API states that this function should not compute the final hash, since its purpose is to accumulate the message to hashed. 
+\item \textit{final(struct shash\_desc* desc, u8* out)}: this function computes the final result by hashing the bytes accumulated with \texttt{update()}. It copies the result in \texttt{out}.
+\end{itemize}
+
+An algorithm that specifies these function and a context structure can be registered with the API. The specific type of algorithm that cryptIC registers is a synchronous SHA-256, meaning that the call to the hashing operation blocks until its completion, as opposed to the asynchronous message digest algorithms based on callbacks.
+
+Our implementation of the update function follows the same strategy adopted in the software implementation of the SHA-256 that ships with Linux and in several other official open-source drivers that have been studied for this project (STM32 and VIA padlock drivers). Due to memory limitations, we cannot afford to accumulate an unspecified number of bytes, nor we can set up such a large data transfer through USB. Therefore,
+the update function is implemented to actually perform a partial hashing as soon as the input data reaches a maximum capacity equal to a multiple of the SHA-256 block size. In our case, as soon as the accumulated data reaches 512 bits (two blocks), it is hashed and the temporary buffer is cleared. The resulting (partial) digest is then used as initial state for subsequent hashing operations. 
+
+In the \texttt{final} function, the data accumulated in \texttt{buf} during previous update calls is hashed. This can happen in two ways. If the USB device was succesfully detected when the transformation context was first initialized, the driver sends a request through USB consisting in the following structure:
+
+\begin{lstlisting}
+  u8 message[CRYPTIC_BUF_LEN];
+  u8 in_partial_digest[SHA256_DIGEST_SIZE];
+  unsigned int len;
+\end{lstlisting}
+
+This contains the message to be hashed, the initial values of the internal registers and the message length. The total number of bytes transmitted in each request is 164 bytes. The driver finally waits for the response, consisting in a 32-byte digest that is copied out as the final result.
+If the device was not detected, the driver resorts to a software fallback, that is a software implementation of the same algorithm.
+This exact same procedure is followed if partial hashes become necessary in the update function.
+
+The main advantage of this integration with the crypto API is that our driver can then be used by existing applications such as dm-crypt or OpenSSL (needs to be recompiled with an optional flag). For testing, we used the kcapi library. This is a way to leverage the Crypto API in user space, since it was initially conceived to be used by consumers in kernel space.
+
+Any user wanting to use this API must first allocate a transformation context. At this stage, the USB device is probed. The transformation can then be used to create individual SHA256 contexts to perform hashing operations. The existence of separate contexts allows the driver to seamlessly handle multiple users of the accelerator at the same time. 
+
 \subsection{USB Driver}
 This module, named ``crypticusb'' for simplicity, is inspired from the official documentation and the examples available from the \href{http://www.linux-usb.org/}{official Linux USB documentation} and from \href{https://github.com/torvalds/linux/blob/master/drivers/usb/usb-skeleton.c}{Linus Torvalds' implementation} of a skeleton USB driver on GitHub, hereon referred to as the ``skel driver''.
 
