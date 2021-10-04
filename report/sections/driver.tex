@@ -79,5 +79,26 @@ int crypticusb_init(void) {
 \paragraph{Data Transfers} \texttt{crypticusb\_send()} and \texttt{crypticusb\_read()} respectively \emph{send} and \emph{receive} \texttt{count} bytes to the USB device and they both return either the effective number of transmitted bytes - a positive number - or a negative error code in case of problems. The actual heavy lifting is internally managed by the functions offered by the Linux USB subsysten: what these functions have to do is to check for errors, handle the \textit{mutexes} to prevent race conditions on the serial port and to allocate and initialize a URB, the USB Request Buffer.
 
 \subsection{CryptIC Driver}
+Since all the core functionalities are implemented from the USB driver and the Cryptographic driver, the only role of the CryptIC driver is to just initialize and destroy its two sub-modules. To perform those operations it simply registers its own \texttt{cryptic\_init\_module()} and \texttt{cryptic\_cleanup()} functions which are called by the kernel when \texttt{ismod} or \texttt{rmmod} commands are launched.
+
 \subsection{Makefile}
+The Makefile is used to simplify the compilation process for this driver. It only has one compilation target, \texttt{all}, which calls:
+\begin{lstlisting}
+all:
+  make -C "/lib/modules/${KERNEL_VERSION}/build" "M=$(PWD)" modules
+\end{lstlisting}
+The other targets are simply used for cleaning build files. The dependancies and compilation flags of the modules are set up through standard Makefile variables. In this case the Makefile defines:
+\begin{lstlisting}
+COMPILER_FLAGS += -Werror -Wall ${COMPILER_DEFINITIONS}
+
+CFLAGS_usb/crypticusb.o := ${COMPILER_FLAGS}
+CFLAGS_crypto/crypticintf.o := ${COMPILER_FLAGS}
+CFLAGS_cryptic.o := ${COMPILER_FLAGS}
+
+# Modules
+obj-m += crypto/crypticintf.o usb/crypticusb.o cryptic.o
+\end{lstlisting}
+The compiler definitions include the device vendor ID and product ID, parameters needed by the USB driver to recognize the device upon connection, together with some information about the kernel version useful to correctly include the cryptographic headers which differ according to the kernel version and would prevent compilation if included incorrectly.
+
 \subsection{Installer}
+Two basic \texttt{install} and \texttt{uninstall} Bash scripts are also available to the user to simplify the installation process for this driver. The installer compiles the modules through the Makefile and finally calls \texttt{insmod}. In case of failure of any of its steps, it removes any inserted cryptic modules as a safety measures and cleans the compilation files. The uninstaller removes the inserted modules and cleans the compilation files. 
