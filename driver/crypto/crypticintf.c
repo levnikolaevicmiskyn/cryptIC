@@ -64,11 +64,11 @@ static ssize_t cryptic_submit_request(struct cryptic_desc_ctx* desc, struct cryp
             /* Read response */
             status = crypticusb_read(cryptdata->digest, SHA256_DIGEST_SIZE);
             if (status >= 0)
-                pr_info("cryptIC: read %ld bytes from usb.", status);
+                pr_info("cryptIC: read %ld bytes from usb\n", status);
             else
-                pr_err("cryptIC: USB reading failed with error %ld", status);
+                pr_err("cryptIC: USB reading failed with error %ld\n", status);
         } else {
-            pr_err("cryptIC: USB sending failed with error %ld. Using fallback", status);
+            pr_err("cryptIC: USB sending failed with error %ld. Using fallback\n", status);
             crypto_shash_update(&(desc->fallback), cryptdata->message, cryptdata->len);
         }
     }
@@ -175,7 +175,6 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   memcpy(out, cryptdata->digest, SHA256_DIGEST_SIZE);
 
   spin_unlock_irqrestore(&crctx->lock, irqflags);
-  printk(KERN_ALERT "cryptIC: it's me");
   return (status>=0 ? 0 : -1);
 }
 
