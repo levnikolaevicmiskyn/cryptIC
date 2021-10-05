@@ -111,7 +111,7 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
 
   do{
     /* Copy the output digest into the device's partial digest */
-    memcpy(cryptdata->in_partial_digest, cryptdata->digest, SHA256_DIGEST_SIZE);
+    memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
 
     /* The number of bytes of the current transfer is equal to the least between the
        remaining */
@@ -153,10 +153,12 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   ssize_t status = 0;
 
   spin_lock_irqsave(&crctx->lock, irqflags);
-  if (ctx->count > CRYPTIC_BUF_LEN){
-    /* In this case there is a partial digest to be copied to the device*/
-    memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
-  }
+ // if (ctx->count > CRYPTIC_BUF_LEN){
+ //   /* In this case there is a partial digest to be copied to the device*/
+  
+  memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
+ 
+ // }
   /* Now copy buffer and finalize */
   if (buflen){
     memcpy(cryptdata->message, ctx->buf, buflen);
