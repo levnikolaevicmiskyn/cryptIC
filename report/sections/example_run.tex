@@ -1,5 +1,5 @@
 \section{Example Run}
-This section presents some screenshots of a full run of the system in a couple configuration.
+This section presents some screenshots of a full run of the system.
 
 \begin{figure}[htb]
 		\center
@@ -10,16 +10,16 @@ This section presents some screenshots of a full run of the system in a couple c
 \begin{figure}[htb]
 		\center
 		\includegraphics[width=\textwidth]{img/hash_device.png}
-		\caption{Hashing example (with device connected)}
+		\caption{Hashing example (with device connected) with \texttt{dmesg} running below showing the system messages}
     \label{img:hash_dev}
 \end{figure}
 \begin{figure}[htb]
 		\center
 		\includegraphics[width=\textwidth]{img/hash_nodev.png}
-		\caption{Hashing example (with device disconnected)}
+		\caption{Hashing example (with device disconnected) with \texttt{dmesg} running below showing the system messages. Notice how the second run of the command happens after the USB device had been disconnected, so the system correctly uses the fallback implementation.}
     \label{img:hash_nodev}
 \end{figure}
-\autoref{img:hash_dev} and \autoref{img:hash_nodev} are particularly interesting because they show the driver in action when using an external command - to show its natural integration with the system - and its seamless operation regardless of whether the device is currently connected or not. In the former case the device actively takes part in the hashing process, in the latter the fallback function is triggered so that no interruption to the user.
+\autoref{img:hash_dev} and \autoref{img:hash_nodev} are particularly interesting because they show the driver in action when using an external command. This shows how CryptIC is directly integrated into the Crypto Subsystem so that already existing programs can already interact with it. Moreover, this also shows how the system seamlessly handles requests even after the device is disconnected, never interrupting the user.
 
 
 \begin{figure}[htb]
