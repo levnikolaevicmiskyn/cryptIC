@@ -1,0 +1,8 @@
+\section{Introduction}
+The aim of this project is to develop a simple USB hardware accelerator usable for cryptography in Linux systems. All the \href{https://github.com/levnikolaevicmiskyn/cryptIC}{source code} and resources for this project are are publicly available on GitHub. The idea is to design a portable USB dongle, easily attachable to any machine running Linux, together with its custom device driver in order to fully integrate the device with the system and maximize its convenience.
+
+Choosing a USB interface is apparently in contrast with the idea of an accelerator, but given the high speeds of modern USB standards and being the most accessible connector in a modern computer, this is not of concern at all. Moreover, the objective is to offload CPU intensive operations to an external device which is specifically designed for that purpose only, freeing up precious CPU time and ideally enhancing the overall security of the process by completely excluding the CPU from these operations.
+
+The driver is designed to be fully integrated with Linux Crypto Subsystem, meaning that, after installation, the device is already compatible with any existing software interacting with the Crypto Subsystem, no additional setup steps required.
+
+At the current stage the device is a simple Arduino which mocks the possible future development of an FPGA with specific functionalities, which is currently postponed due to the complexity of designing the hardware side of a custom USB interface from scratch.

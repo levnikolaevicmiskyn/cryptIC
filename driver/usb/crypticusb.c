@@ -33,7 +33,7 @@ struct crypticusb_dev {
 
 /* Functions headers */
 static int crypticusb_probe(struct usb_interface *intf, const struct usb_device_id *id);
-void crypticusb_disconnect(struct usb_interface *intf);
+static void crypticusb_disconnect(struct usb_interface *intf);
 
 /* Globals */
 static const struct usb_device_id crypticusb_devs_table[] = {
@@ -213,7 +213,7 @@ static int crypticusb_probe(struct usb_interface *intf, const struct usb_device_
     return 0;
 }
 
-void crypticusb_disconnect(struct usb_interface *intf) {
+static void crypticusb_disconnect(struct usb_interface *intf) {
     struct crypticusb_dev *dev;
     dev = usb_get_intfdata(intf);
     if (dev != gdev) {

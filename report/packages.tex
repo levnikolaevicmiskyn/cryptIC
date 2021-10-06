@@ -1,0 +1,37 @@
+% General packages
+\usepackage[utf8]{inputenc}
+\usepackage{wrapfig}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=red,
+    urlcolor=blue
+}
+\usepackage{siunitx}
+\usepackage{todonotes}
+%\usepackage[lighttt]{lmodern}
+
+% Geometry package
+\usepackage[a4paper,width=150mm,top=30mm,bottom=25mm]{geometry}
+
+% Graphics packages
+\usepackage{graphicx}
+\graphicspath{img}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{color}
+
+\definecolor{code_numbercolor}{rgb}{0.1, 0.1, 0.8}
+\definecolor{code_keywordcolor}{rgb}{0.85, 0.5, 0.05}
+\lstset{
+    backgroundcolor=\color{white},
+    basicstyle=\ttfamily\footnotesize\color{black},
+    numberstyle=\ttfamily\tiny\color{black},
+    keywordstyle=\ttfamily\bfseries\color{code_keywordcolor},
+    breaklines=true,
+    numbers=left,
+    language=C++,
+    morekeywords={string, vector, size_t}
+}
