@@ -200,7 +200,6 @@ CryptICData data;
 void setup() {
 	Serial.begin(9600);
   Serial.setTimeout(5000);
-  Serial.println(rx_data_size);
   // Pin for status signalling
   pinMode(PIN_LED, OUTPUT);
 }

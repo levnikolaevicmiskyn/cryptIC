@@ -79,21 +79,22 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
   struct cryptic_desc_ctx* ctx = shash_desc_ctx(desc);
   struct cryptic_sha256_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
   struct cryptpb* cryptdata = (struct cryptpb*) crctx->cryptic_data;
-  //int ret;
-  unsigned int total, start = 0, nbytes;
+  const unsigned sha_buf_len = (unsigned) CRYPTIC_BUF_LEN;
+  unsigned int total;
   unsigned long irqflags;
-  unsigned int buflen = ctx->count % ((unsigned int)CRYPTIC_BUF_LEN);
+  pr_info("CryptIC: Update called!\n");
 
   spin_lock_irqsave(&crctx->lock, irqflags);
 
-  total = buflen + len;
-  if (total <= CRYPTIC_BUF_LEN){
+  total = ctx->buflen + len;
+  if (total <= sha_buf_len){
     /*
       In this case the total message length is still lower than the minimum block size,
       append the new data to the buffer
     */
-    memcpy(ctx->buf+buflen, data, len);
+    memcpy(ctx->buf + ctx->buflen, data, len);
     ctx->count += len;
+    ctx->buflen += len;
     spin_unlock_irqrestore(&crctx->lock, irqflags);
     return 0;
   }
@@ -102,42 +103,54 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
     N blocks and leave the leftover in the buffer.
   */
   /* Copy what was already present in the buffer */
-  if (buflen > 0){
-    memcpy(cryptdata->message, ctx->buf, buflen);
-    start = buflen;
+  if (ctx->buflen > 0){
+    memcpy(cryptdata->message, ctx->buf, ctx->buflen);
+    total -= ctx->buflen;
   }
 
-  total -= buflen;
+    while (total > sha_buf_len) {
+        pr_info("CryptIC: giro di loop!\n");
+        memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
+        if (ctx->buflen > 0) {
+            /* Copy data but don't overwrite the already existing data written before if buflen was > 0 */
+            memcpy(cryptdata->message + ctx->buflen, data, sha_buf_len - ctx->buflen);
+            ctx->buflen = 0;
+        } else {
+            memcpy(cryptdata->message, data, sha_buf_len);
+        }
+        cryptdata->len = (int) sha_buf_len;
+        cryptic_submit_request(ctx, cryptdata);
+        memcpy(ctx->state, cryptdata->digest, SHA256_DIGEST_SIZE);
 
-  do{
-    /* Copy the output digest into the device's partial digest */
+        /* Advance pointer */
+        data += cryptdata->len;
+        total -= sha_buf_len;
+    }
+
+  /*do{
+    *//* Copy the output digest into the device's partial digest *//*
     memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
-
-    /* The number of bytes of the current transfer is equal to the least between the
-       remaining */
-    nbytes = min_t(unsigned int , (unsigned int)CRYPTIC_BUF_LEN, start + total);
-    start = 0;
-
     total -= nbytes;
 
-    /* Copy curr bytes to the device request */
+    *//* Copy curr bytes to the device request *//*
     memcpy(cryptdata->message, data, nbytes);
-    cryptdata->len = CRYPTIC_BUF_LEN;
+    cryptdata->len = nbytes;
 
     data += nbytes;
 
-    /*  FIXME: check the return value */
+    *//*  FIXME: check the return value *//*
     cryptic_submit_request(ctx, cryptdata);
-  } while(total >= (unsigned int)CRYPTIC_BUF_LEN);
+    memcpy(ctx->state, cryptdata->digest, SHA256_DIGEST_SIZE);
 
-  if (total){
+  } while(total > (unsigned int)CRYPTIC_BUF_LEN);*/
+
+  if (total > 0) {
     /* Now copy the leftover into the buffer */
+    memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
     memcpy(ctx->buf, data, total);
+    ctx->buflen = total;
   }
   ctx->count += len;
-
-  memcpy(ctx->state, cryptdata->digest, SHA256_DIGEST_SIZE);
-
   spin_unlock_irqrestore(&crctx->lock, irqflags);
   return 0;
 }
@@ -149,7 +162,6 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   struct cryptpb* cryptdata = (struct cryptpb*) crctx->cryptic_data;
   //int i;
   unsigned long irqflags;
-  unsigned int buflen = (ctx->count) % ((unsigned int)CRYPTIC_BUF_LEN);
   ssize_t status = 0;
 
   spin_lock_irqsave(&crctx->lock, irqflags);
@@ -160,9 +172,9 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
  
  // }
   /* Now copy buffer and finalize */
-  if (buflen){
-    memcpy(cryptdata->message, ctx->buf, buflen);
-    cryptdata->len = buflen;
+  if (ctx->buflen){
+    memcpy(cryptdata->message, ctx->buf, ctx->buflen);
+    cryptdata->len = ctx->buflen;
 
     /* SEND REQUEST THROUGH USB */
     status = cryptic_submit_request(ctx, cryptdata);
@@ -177,7 +189,6 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   memcpy(out, cryptdata->digest, SHA256_DIGEST_SIZE);
 
   spin_unlock_irqrestore(&crctx->lock, irqflags);
-  printk(KERN_ALERT "cryptIC: it's me");
   return (status>=0 ? 0 : -1);
 }
 
@@ -196,6 +207,7 @@ static int cryptic_sha_init(struct shash_desc* desc){
   ctx->state[7] = 0x5be0cd19;
 
   ctx->count = 0;
+  ctx->buflen = 0;
 
   /* Initialize fallback algorithm if applicable */
   if (crctx->fallback != NULL){

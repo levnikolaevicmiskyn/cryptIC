@@ -63,7 +63,7 @@ struct cryptic_desc_ctx {
   __u32 state[SHA256_DIGEST_SIZE / 4];
   unsigned int count;
   u8 buf[CRYPTIC_BUF_LEN];
-
+  unsigned int buflen;
   /* Fallback */
   
   unsigned int use_fallback;
