@@ -25,6 +25,11 @@
 #include <crypto/sha.h>
 #endif
 
+#define FAKE_HARDWARE
+#ifdef FAKE_HARDWARE
+#include "softwareHash.h"
+#endif
+
 #include "../usb/crypticusb.h"
 
 MODULE_LICENSE("Dual BSD/GPL");

@@ -1,5 +1,16 @@
 #include "crypticintf.h"
 
+/*
+ * Utility function: copy digest into state and reverse bytes in each (32-bit) entry of state
+*/
+static void revcpy32(__u32 state[], u8 digest[]){
+  int i;
+  memcpy(state, digest, SHA256_DIGEST_SIZE);
+  for(i=0; i < 8; i++)
+    state[i] = __bswap_32(state[i]);
+}
+
+
 /**
  * cryptic_ctx_init: initialization function for a Crypto API context
  **/
@@ -53,6 +64,9 @@ static void cryptic_cra_sha256_exit(struct crypto_shash* tfm){
 
 static ssize_t cryptic_submit_request(struct cryptic_desc_ctx* desc, struct cryptpb* cryptdata){
     ssize_t status = 0;
+#ifdef FAKE_HARDWARE
+    runArduino((u8*) cryptdata, cryptdata->digest); 
+#else
     if (desc->use_fallback) {
         /* Device was unavailable at context creation time, resort to the software fallback */
         crypto_shash_update(&(desc->fallback), cryptdata->message, cryptdata->len);
@@ -72,6 +86,7 @@ static ssize_t cryptic_submit_request(struct cryptic_desc_ctx* desc, struct cryp
             crypto_shash_update(&(desc->fallback), cryptdata->message, cryptdata->len);
         }
     }
+#endif    
   return status;
 }
 
@@ -120,29 +135,13 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
         }
         cryptdata->len = (int) sha_buf_len;
         cryptic_submit_request(ctx, cryptdata);
-        memcpy(ctx->state, cryptdata->digest, SHA256_DIGEST_SIZE);
-
+        //memcpy(ctx->state, cryptdata->digest, SHA256_DIGEST_SIZE);
+	revcpy32(ctx->state, cryptdata->digest);
+	
         /* Advance pointer */
         data += cryptdata->len;
         total -= sha_buf_len;
     }
-
-  /*do{
-    *//* Copy the output digest into the device's partial digest *//*
-    memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
-    total -= nbytes;
-
-    *//* Copy curr bytes to the device request *//*
-    memcpy(cryptdata->message, data, nbytes);
-    cryptdata->len = nbytes;
-
-    data += nbytes;
-
-    *//*  FIXME: check the return value *//*
-    cryptic_submit_request(ctx, cryptdata);
-    memcpy(ctx->state, cryptdata->digest, SHA256_DIGEST_SIZE);
-
-  } while(total > (unsigned int)CRYPTIC_BUF_LEN);*/
 
   if (total > 0) {
     /* Now copy the leftover into the buffer */
