@@ -9,8 +9,8 @@ KERNEL_VMIN    := $(shell echo ${KERNEL_VERSION} | sed -e 's/^[0-9][0-9]*\.\([0-
 KERNEL_VPATCH  := $(shell echo ${KERNEL_VERSION} | sed -e 's/^[0-9][0-9]*\.[0-9][0-9]*\.\([0-9][0-9]*\).*/\1/')
 
 # Compiler definitions
-CRYPTIC_DEV_VENDOR_ID := 0x1a86
-CRYPTIC_DEV_PRODUCT_ID := 0x7523
+CRYPTIC_DEV_VENDOR_ID := 0x2341
+CRYPTIC_DEV_PRODUCT_ID := 0x0043
 
 # Compiler options
 COMPILER_DEFINITIONS := \
@@ -26,9 +26,10 @@ COMPILER_FLAGS += -Werror -Wall ${COMPILER_DEFINITIONS}
 CFLAGS_usb/crypticusb.o := ${COMPILER_FLAGS}
 CFLAGS_crypto/crypticintf.o := ${COMPILER_FLAGS}
 CFLAGS_cryptic.o := ${COMPILER_FLAGS}
+CFLAGS_softwareHash.o := ${COMPILER_FLAGS}
 
 # Modules
-obj-m += crypto/crypticintf.o usb/crypticusb.o cryptic.o
+obj-m += crypto/softwareHash.o crypto/crypticintf.o usb/crypticusb.o cryptic.o
 
 # Targets
 all:

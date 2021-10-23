@@ -18,7 +18,7 @@ sudo -v
 
 # Remove installed modules
 echo "Removing modules"
-modules=(cryptic crypticintf crypticusb)
+modules=(cryptic crypticintf crypticusb softwareHash)
 for module in ${modules[@]}
 do
     subcommand sudo rmmod "$module"

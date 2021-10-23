@@ -22,6 +22,8 @@ typedef struct cryptpb {
   u8 message[CRYPTIC_BUF_LEN];
   u8 in_partial_digest[SHA256_DIGEST_SIZE];
   u32 len;
+  u8 finalize;
+  u32 bitlen;
   u8 digest[SHA256_DIGEST_SIZE];
 } CryptICData;
 
@@ -111,8 +113,9 @@ void sha256_init(SHA256_CTX *ctx,BYTE in_partial_digest[])
 
 void sha256_main_loop(SHA256_CTX *ctx, const BYTE data[], size_t len)
 {
+  int i;
     //main loop
-  for (int i = 0; i < len; ++i) {
+  for (i = 0; i < len; ++i) {
     ctx->data[ctx->datalen] = data[i];
     ctx->datalen++;
     if (ctx->datalen == 64) {
@@ -121,13 +124,13 @@ void sha256_main_loop(SHA256_CTX *ctx, const BYTE data[], size_t len)
       ctx->datalen = 0;
     }
   }
-
+  pr_info("main loop terminated with datalen = %d", ctx->datalen);
 }
 
-void sha256_final(SHA256_CTX *ctx, BYTE hash[])
+void sha256_final(SHA256_CTX *ctx, BYTE hash[], u32 bitlen)
 {
   WORD i;
-
+  int ii;
   i = ctx->datalen;
 
   // Pad whatever data is left in the buffer.
@@ -142,14 +145,15 @@ void sha256_final(SHA256_CTX *ctx, BYTE hash[])
       ctx->data[i++] = 0x00;
     sha256_transform(ctx, ctx->data);
     //memset(ctx->data, 0, 56);
-    for (int ii = 0; ii < 56; ii++)
+    for (ii = 0; ii < 56; ii++)
     {
       ctx->data[ii] = 0x0;
     }
   }
 
   // Append to the padding the total message's length in bits and transform.
-  ctx->bitlen += ctx->datalen * 8;
+  //ctx->bitlen += ctx->datalen * 8;
+  ctx->bitlen = bitlen;
   ctx->data[63] = ctx->bitlen;
   ctx->data[62] = ctx->bitlen >> 8;
   ctx->data[61] = ctx->bitlen >> 16;
@@ -174,15 +178,28 @@ void sha256_final(SHA256_CTX *ctx, BYTE hash[])
   }
 }
 
-void sha256(SHA256_CTX *ctx, const BYTE data[], size_t len, BYTE hash[], BYTE in_partial_digest[])
+void sha256(SHA256_CTX *ctx, const BYTE data[], size_t len, BYTE hash[], BYTE in_partial_digest[], u8 finalize, u32 bitlen)
 {
+  int i;
+  pr_info("Starting with partial:");
+  for (i=0; i<32; i++)
+	pr_info("%x",in_partial_digest[i]);
 
-    sha256_init(ctx,in_partial_digest);
+  sha256_init(ctx,in_partial_digest);
 
     sha256_main_loop(ctx, data, len);
 
-    sha256_final(ctx, hash);
-
+    if (finalize != 0){
+      sha256_final(ctx, hash, bitlen);
+      pr_info("finalized");
+    }
+    else{
+      memcpy(hash, ctx->state, SHA256_DIGEST_SIZE);
+      pr_info("Exporting partial:");
+      for (i=0; i<32; i++)
+	pr_info("%x",hash[i]);
+      
+    }
     
 }
 
@@ -201,12 +218,13 @@ void setup() {
 */
 
 void runArduino(u8* serialData, u8* digest) {
-  data = (CryptICData*) serialData;
-  
+  SHA256_CTX ctx;
+  memcpy(&data, serialData, sizeof(CryptICData));
 	//Compute the sha256 of the received string
-	SHA256_CTX ctx;
-  sha256(&ctx, data.message, data.len, data.digest,data.in_partial_digest);  
+  sha256(&ctx, data.message, data.len, data.digest,data.in_partial_digest, data.finalize, data.bitlen);  
     
 	//Write the result on USB
   memcpy(digest,data.digest,SHA256_DIGEST_SIZE);
 }
+
+EXPORT_SYMBOL(runArduino);
