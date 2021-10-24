@@ -29,7 +29,7 @@ sudo -v
 # Compile modules
 cd "driver/"
 echo "Compiling cryptIC modules..."
-subcommand make
+subcommand make  FAKE_HARDWARE=1
 if (( $? != 0 ))
 then
     echo "Compilation failed, cleaning up and quitting"
@@ -42,7 +42,7 @@ cd ..
 
 # Install in the right order
 echo "Inserting modules..."
-modules=(driver/usb/crypticusb.ko driver/crypto/crypticintf.ko driver/cryptic.ko)
+modules=(driver/crypto/softwareHash.ko driver/usb/crypticusb.ko driver/crypto/crypticintf.ko driver/cryptic.ko)
 inserted_modules=()
 for module in ${modules[@]}
 do
