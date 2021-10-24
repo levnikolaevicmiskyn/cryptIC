@@ -12,11 +12,11 @@ static int cryptic_cra_sha256_init(struct crypto_shash *tfm){
   if (!crypticusb_isConnected()){
       /* Setup a software callback */
       const char* fallback_alg_name = crypto_shash_alg_name(tfm);
-      pr_info("cryptIC: device not detected, registering fallback algorithm %s", fallback_alg_name);
+      pr_info("cryptIC: device not detected, registering fallback algorithm %s\n", fallback_alg_name);
       /* Allocate a fallback */
       fallback_tfm = crypto_alloc_shash(fallback_alg_name, 0, CRYPTO_ALG_NEED_FALLBACK);
       if (IS_ERR(fallback_tfm)){
-          pr_err("cryptIC: cannot allocate a fallback algorithm");
+          pr_err("cryptIC: cannot allocate a fallback algorithm\n");
           return PTR_ERR(fallback_tfm);
       }
 
@@ -24,11 +24,12 @@ static int cryptic_cra_sha256_init(struct crypto_shash *tfm){
       tfm->descsize += crypto_shash_descsize(fallback_tfm);
     }
     else {
-      pr_info("cryptIC: device detected, using it as accelerator");
+      pr_info("cryptIC: device detected, using it as accelerator\n");
       ctx->fallback = NULL;
     }
 #else
-  pr_info("cryptIC: running debug version. Hardware is emulated in software and fallback is disabled. Recompile without FAKE_HARDWARE flag for the real driver");
+  pr_info("cryptIC: running debug version. Hardware is emulated in software and fallback is disabled. "
+          "Recompile without FAKE_HARDWARE flag for the real driver\n");
   ctx->fallback = NULL;
 #endif
   
@@ -92,7 +93,6 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
   const unsigned sha_buf_len = (unsigned) CRYPTIC_BUF_LEN;
   unsigned int total;
   unsigned long irqflags;
-  pr_info("CryptIC: Update called!\n");
 
   spin_lock_irqsave(&crctx->lock, irqflags);
 
@@ -119,7 +119,6 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
   }
 
     while (total > sha_buf_len) {
-        pr_info("CryptIC: giro di loop!\n");
         memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
         if (ctx->buflen > 0) {
             /* Copy data but don't overwrite the already existing data written before if buflen was > 0 */
