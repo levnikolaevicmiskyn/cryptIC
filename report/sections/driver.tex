@@ -1,0 +1,104 @@
+\section{Driver}
+The driver is the agent responsible to bridge the high level user interface offered by CryptIC to the low level kernel operations.
+
+It is internally organized in two interface-like modules, each implementing a portion of the core functionalities, and the top-level driver to initialize the submodules and to implement the standard Linux driver facilities. The two submodules are the Cryptographic Interface Driver to integrate CryptIC with the Linux Cryptographic API, and the USB Driver to handle USB requests and communications.
+
+\subsection{Cryptographic Interface Driver}
+On the software side, this device exposes its functionality through the Linux Kernel Crypto API. Thanks to this standardized interface, consumer applications in both kernel and user space become able to use cryptIC through an abstraction layer.
+
+The Crypto API allows the possibility to register message digest algorithms such as the SHA256 implemented in cryptIC. Such algorithms are expected to provide a predefined set of functions:
+\begin{itemize}
+\item \textit{init(struct shash\_desc* desc)}: This function initializes the hash context, that is a structure of type \texttt{struct cryptic\_desc\_ctx} containing the current hash state (internal registers), a temporary data buffer (\texttt{buf}) and its length in bytes (\texttt{count}).
+\item \textit{update(struct shash\_desc* desc, const u8* data, unsigned int len)}: this function pushes \texttt{len} bytes into the transformation. The API states that this function should not compute the final hash, since its purpose is to accumulate the message to hashed. 
+\item \textit{final(struct shash\_desc* desc, u8* out)}: this function computes the final result by hashing the bytes accumulated with \texttt{update()}. It copies the result in \texttt{out}.
+\end{itemize}
+
+An algorithm that specifies these function and a context structure can be registered with the API. The specific type of algorithm that cryptIC registers is a synchronous SHA-256, meaning that the call to the hashing operation blocks until its completion, as opposed to the asynchronous message digest algorithms based on callbacks.
+
+Our implementation of the update function follows the same strategy adopted in the software implementation of the SHA-256 that ships with Linux and in several other official open-source drivers that have been studied for this project (STM32 and VIA padlock drivers). Due to memory limitations, we cannot afford to accumulate an unspecified number of bytes, nor we can set up such a large data transfer through USB. Therefore,
+the update function is implemented to actually perform a partial hashing as soon as the input data reaches a maximum capacity equal to a multiple of the SHA-256 block size. In our case, as soon as the accumulated data reaches 512 bits (two blocks), it is hashed and the temporary buffer is cleared. The resulting (partial) digest is then used as initial state for subsequent hashing operations. 
+
+In the \texttt{final} function, the data accumulated in \texttt{buf} during previous update calls is hashed. This can happen in two ways. If the USB device was succesfully detected when the transformation context was first initialized, the driver sends a request through USB consisting in the following structure:
+
+\begin{lstlisting}
+  u8 message[CRYPTIC_BUF_LEN];
+  u8 in_partial_digest[SHA256_DIGEST_SIZE];
+  unsigned int len;
+\end{lstlisting}
+
+This contains the message to be hashed, the initial values of the internal registers and the message length. The total number of bytes transmitted in each request is 164 bytes. The driver finally waits for the response, consisting in a 32-byte digest that is copied out as the final result.
+If the device was not detected, the driver resorts to a software fallback, that is a software implementation of the same algorithm.
+This exact same procedure is followed if partial hashes become necessary in the update function.
+
+The main advantage of this integration with the crypto API is that our driver can then be used by existing applications such as dm-crypt or OpenSSL (needs to be recompiled with an optional flag). For testing, we used the kcapi library. This is a way to leverage the Crypto API in user space, since it was initially conceived to be used by consumers in kernel space.
+
+Any user wanting to use this API must first allocate a transformation context. At this stage, the USB device is probed. The transformation can then be used to create individual SHA256 contexts to perform hashing operations. The existence of separate contexts allows the driver to seamlessly handle multiple users of the accelerator at the same time. 
+
+\subsection{USB Driver}
+This module, named ``crypticusb'' for simplicity, is inspired from the official documentation and the examples available from the \href{http://www.linux-usb.org/}{official Linux USB documentation} and from \href{https://github.com/torvalds/linux/blob/master/drivers/usb/usb-skeleton.c}{Linus Torvalds' implementation} of a skeleton USB driver on GitHub, hereon referred to as the ``skel driver''.
+
+\paragraph{Driver Type} Crypticusb is a character device driver, meaning it interacts with a hardware device through character-by-character and relatively small data exchanges. Unlike most device drivers, crypticusb does not offer \textit{file operations}. That is because this driver, despite being a standard USB driver with no knowledge of cryptography, is meant to be under the sole control of the CryptIC driver. Moreover, it is also a bad idea to let any user access a public file containing information on supposedly secure data transfers.
+
+\paragraph{User Interface} Crypticusb instead offers a programming interface to its implementations of USB data transfers. Its header contains the declaration of fucntions which are relevant to the user:
+\begin{lstlisting}
+/* USB module setup */
+int crypticusb_init(void);
+void crypticusb_exit(void);
+
+/* USB module interface */
+ssize_t crypticusb_send(const char *buffer, size_t count);
+ssize_t crypticusb_read(char *buffer, size_t count);
+int crypticusb_isConnected(void);
+\end{lstlisting}
+The functions \texttt{crypticusb\_init()} and \texttt{crypticusb\_exit()} initialize and de-initialize the driver. Specifically, they register and un-register the driver to the kernel and provide it with some useful information, such as what devices should be controlled by this driver and what functions to call upon certain events. For instance, device connection and disconnection are handled by \texttt{crypticusb\_probe()} and \texttt{crypticusb\_disconnect()} which are automatically called by the kernel when their associated events happen. \\
+
+\paragraph{Initialization} The registration process consists in calling standard Linux functions and passing them specific \texttt{struct}s. To give an example, below is a snippet of one of these structs and the implementation of \texttt{crypticusb\_init()}:
+\begin{lstlisting}
+static struct usb_driver crypticusb_driver = {
+        .name = CRYPTIC_DEV_NAME,
+        .probe = crypticusb_probe,
+        .disconnect = crypticusb_disconnect,
+        .id_table = crypticusb_devs_table
+};
+
+...
+
+int crypticusb_init(void) {
+    int status;
+    /* Register driver within USB subsystem */
+    status = usb_register(&crypticusb_driver);
+    if (status != 0) {
+        pr_err(CRYPTIC_DEV_NAME ": could not register USB driver: error %d\n", status);
+        return -1;
+    }
+    pr_info(CRYPTIC_DEV_NAME ": succesfully registered USB driver!\n");
+    return 0;
+}
+\end{lstlisting}
+
+\paragraph{Data Transfers} \texttt{crypticusb\_send()} and \texttt{crypticusb\_read()} respectively \emph{send} and \emph{receive} \texttt{count} bytes to the USB device and they both return either the effective number of transmitted bytes - a positive number - or a negative error code in case of problems. The actual heavy lifting is internally managed by the functions offered by the Linux USB subsysten: what these functions have to do is to check for errors, handle the \textit{mutexes} to prevent race conditions on the serial port and to allocate and initialize a URB, the USB Request Buffer.
+
+\subsection{CryptIC Driver}
+Since all the core functionalities are implemented from the USB driver and the Cryptographic driver, the only role of the CryptIC driver is to just initialize and destroy its two sub-modules. To perform those operations it simply registers its own \texttt{cryptic\_init\_module()} and \texttt{cryptic\_cleanup()} functions which are called by the kernel when \texttt{ismod} or \texttt{rmmod} commands are launched.
+
+\subsection{Makefile}
+The Makefile is used to simplify the compilation process for this driver. It only has one compilation target, \texttt{all}, which calls:
+\begin{lstlisting}
+all:
+  make -C "/lib/modules/${KERNEL_VERSION}/build" "M=$(PWD)" modules
+\end{lstlisting}
+The other targets are simply used for cleaning build files. The dependancies and compilation flags of the modules are set up through standard Makefile variables. In this case the Makefile defines:
+\begin{lstlisting}
+COMPILER_FLAGS += -Werror -Wall ${COMPILER_DEFINITIONS}
+
+CFLAGS_usb/crypticusb.o := ${COMPILER_FLAGS}
+CFLAGS_crypto/crypticintf.o := ${COMPILER_FLAGS}
+CFLAGS_cryptic.o := ${COMPILER_FLAGS}
+
+# Modules
+obj-m += crypto/crypticintf.o usb/crypticusb.o cryptic.o
+\end{lstlisting}
+The compiler definitions include the device vendor ID and product ID, parameters needed by the USB driver to recognize the device upon connection, together with some information about the kernel version useful to correctly include the cryptographic headers which differ according to the kernel version and would prevent compilation if included incorrectly.
+
+\subsection{Installer}
+Two basic \texttt{install} and \texttt{uninstall} Bash scripts are also available to the user to simplify the installation process for this driver. The installer compiles the modules through the Makefile and finally calls \texttt{insmod}. In case of failure of any of its steps, it removes any inserted cryptic modules as a safety measures and cleans the compilation files. The uninstaller removes the inserted modules and cleans the compilation files. 

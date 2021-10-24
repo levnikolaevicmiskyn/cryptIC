@@ -1,0 +1,4 @@
+# Ignore LaTeX auxilliary files
+cryptIC.*
+!cryptIC.tex
+*.aux

@@ -1,0 +1,48 @@
+\section{Firmware}
+We wanted to emulate the hardware accelerator that performs the cryptographic functions with an external microcontroller that communicates with the PC through the USB port. The firmware that controls the device performs the functions of a serial interface by reading data and returning the results on the same port.
+
+The computation of the SHA-256 algorithm on the input data follows the procedure seen in the previous section. The algorithm was divided into three main functions, the first to initialize the variables, the second to execute the main loop of the algorithm, and the last to rewrite the data in big-endian encoding, since the algorithm uses little-endian data.
+
+\noindent The main loop algorithm is as follows.
+Let us consider the \texttt{w[]} vector as the input 512-bit string divided in sixteen 32-bit words.
+\begin{lstlisting}
+/* Extend the sixteen 32-bit words into sixty-four 32-bit words: */
+for i from 16 to 63
+s0 := (w[i-15] RROT 7) xor (w[i-15] RROT 18) xor (w[i-15] RSHIFT 3)
+s1 := (w[i-2] RROT 17) xor (w[i-2] RROT 19) xor (w[i-2] RSHIFT 10)
+
+\end{lstlisting}
+Now we can compute the partial results of the algorithm and add this to the final hash:
+\begin{lstlisting}
+for i from 0 to 63
+s0 := (a RROT 2) xor (a RROT 13) xor (a RROT 22)
+maj := (a and b) xor (a and c) xor (b and c)
+t2 := s0 + maj
+s1 := (e RROT 6) xor (e RROT 11) xor (e RROT 25)
+ch := (e and f) xor ((not e) and g)
+t1 := h + s1 + ch + k[i] + w[i]
+
+
+h := g
+g := f
+f := e
+e := d + t1
+d := c
+c := b
+b := a
+a := t1 + t2
+\end{lstlisting}
+Lastly to compute the final result, we have to append all the partial hash. The output is the \texttt{hash} variable.
+\begin{lstlisting}
+h0 := h0 + a
+h1 := h1 + b
+h2 := h2 + c
+h3 := h3 + d
+h4 := h4 + e
+h5 := h5 + f
+h6 := h6 + g
+h7 := h7 + h
+
+hash = h0 append h1 append h2 append h3 append h4 append h5 append h6 append h7
+
+\end{lstlisting}
