@@ -9,8 +9,8 @@ KERNEL_VMIN    := $(shell echo ${KERNEL_VERSION} | sed -e 's/^[0-9][0-9]*\.\([0-
 KERNEL_VPATCH  := $(shell echo ${KERNEL_VERSION} | sed -e 's/^[0-9][0-9]*\.[0-9][0-9]*\.\([0-9][0-9]*\).*/\1/')
 
 # Compiler definitions
-CRYPTIC_DEV_VENDOR_ID := 0x2341
-CRYPTIC_DEV_PRODUCT_ID := 0x0043
+CRYPTIC_DEV_VENDOR_ID := 0x1a86
+CRYPTIC_DEV_PRODUCT_ID := 0x7523
 
 # Compiler options
 COMPILER_DEFINITIONS := \
