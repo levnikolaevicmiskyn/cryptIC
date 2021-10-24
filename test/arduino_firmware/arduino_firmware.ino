@@ -19,7 +19,7 @@ typedef u32  WORD;             // 32-bit word, change to "long" for 16-bit machi
 typedef struct {
   BYTE data[64];
   WORD datalen;
-  unsigned long long bitlen;
+  WORD bitlen;
   WORD state[8];
 } SHA256_CTX;
 
@@ -183,7 +183,7 @@ void sha256(SHA256_CTX *ctx, const BYTE data[], size_t len, BYTE hash[], BYTE in
     sha256_main_loop(ctx, data, len);
 
     if (finalize != 0) {
-        sha256_final(ctx, hash);
+        sha256_final(ctx, hash, bitlen);
     }
     else{
         memcpy(hash, ctx->state, SHA256_DIGEST_SIZE);
@@ -215,7 +215,7 @@ void loop() {
   
 	//Compute the sha256 of the received string
   SHA256_CTX ctx;
-  sha256(&ctx, data.message, data.len, data.digest,data.in_partial_digest,data.finalize, data.bitlen);
+  sha256(&ctx, data.message, data.len, data.digest, data.in_partial_digest, data.finalize, data.bitlen);
     
 	//Write the result on USB
   Serial.write((byte*) data.digest, SHA256_DIGEST_SIZE);
