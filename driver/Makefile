@@ -26,10 +26,14 @@ COMPILER_FLAGS += -Werror -Wall ${COMPILER_DEFINITIONS}
 CFLAGS_usb/crypticusb.o := ${COMPILER_FLAGS}
 CFLAGS_crypto/crypticintf.o := ${COMPILER_FLAGS}
 CFLAGS_cryptic.o := ${COMPILER_FLAGS}
-CFLAGS_softwareHash.o := ${COMPILER_FLAGS}
+
+ifdef FAKE_HARDWARE
+	CFLAGS_softwareHash.o := ${COMPILER_FLAGS}
+	obj-m += crypto/softwareHash.o
+endif
 
 # Modules
-obj-m += crypto/softwareHash.o crypto/crypticintf.o usb/crypticusb.o cryptic.o
+obj-m += crypto/crypticintf.o usb/crypticusb.o cryptic.o
 
 # Targets
 all:
