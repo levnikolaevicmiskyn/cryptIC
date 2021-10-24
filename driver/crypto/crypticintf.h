@@ -43,7 +43,7 @@ struct cryptpb{
   u8 message[CRYPTIC_BUF_LEN];
   u8 in_partial_digest[SHA256_DIGEST_SIZE];
   u32 len;
-  u8 finalize;
+  u32 finalize;
   u32 bitlen;
   u8 digest[SHA256_DIGEST_SIZE];
 };
