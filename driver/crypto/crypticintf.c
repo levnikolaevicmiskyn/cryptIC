@@ -118,24 +118,24 @@ static int cryptic_sha_update(struct shash_desc* desc, const u8* data, unsigned 
     total -= ctx->buflen;
   }
 
-    while (total > sha_buf_len) {
-        memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
-        if (ctx->buflen > 0) {
-            /* Copy data but don't overwrite the already existing data written before if buflen was > 0 */
-            memcpy(cryptdata->message + ctx->buflen, data, sha_buf_len - ctx->buflen);
-            ctx->buflen = 0;
-        } else {
-            memcpy(cryptdata->message, data, sha_buf_len);
-        }
-        cryptdata->len = (int) sha_buf_len;
+  while (total > sha_buf_len) {
+    memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
+    if (ctx->buflen > 0) {
+      /* Copy data but don't overwrite the already existing data written before if buflen was > 0 */
+      memcpy(cryptdata->message + ctx->buflen, data, sha_buf_len - ctx->buflen);
+      ctx->buflen = 0;
+    } else {
+      memcpy(cryptdata->message, data, sha_buf_len);
+    }
+    cryptdata->len = (int) sha_buf_len;
 	cryptdata->finalize = 0;
 	cryptic_submit_request(ctx, cryptdata);
-        memcpy(ctx->state, cryptdata->digest, SHA256_DIGEST_SIZE);
-	
-        /* Advance pointer */
-        data += cryptdata->len;
-        total -= sha_buf_len;
-    }
+    memcpy(ctx->state, cryptdata->digest, SHA256_DIGEST_SIZE);
+
+    /* Advance pointer */
+    data += cryptdata->len;
+    total -= sha_buf_len;
+  }
 
   if (total > 0) {
     /* Now copy the leftover into the buffer */
