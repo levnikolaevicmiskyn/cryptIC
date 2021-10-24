@@ -27,6 +27,8 @@ typedef struct cryptpb {
   u8 message[CRYPTIC_BUF_LEN];
   u8 in_partial_digest[SHA256_DIGEST_SIZE];
   u32 len;
+  u8 finalize;
+  u32 bitlen;
   u8 digest[SHA256_DIGEST_SIZE];
 } CryptICData;
 
@@ -103,14 +105,7 @@ void sha256_init(SHA256_CTX *ctx,BYTE in_partial_digest[])
 {
   ctx->datalen = 0;
   ctx->bitlen = 0;
-  //ctx->state[0] = 0x6a09e667;
-  //ctx->state[1] = 0xbb67ae85;
-  //ctx->state[2] = 0x3c6ef372;
-  //ctx->state[3] = 0xa54ff53a;
-  //ctx->state[4] = 0x510e527f;
-  //ctx->state[5] = 0x9b05688c;
-  //ctx->state[6] = 0x1f83d9ab;
-  //ctx->state[7] = 0x5be0cd19;
+
   memcpy(ctx->state, in_partial_digest, SHA256_DIGEST_SIZE);
 }
 
@@ -129,7 +124,7 @@ void sha256_main_loop(SHA256_CTX *ctx, const BYTE data[], size_t len)
 
 }
 
-void sha256_final(SHA256_CTX *ctx, BYTE hash[])
+void sha256_final(SHA256_CTX *ctx, BYTE hash[], u32 bitlen)
 {
   WORD i;
 
@@ -154,7 +149,8 @@ void sha256_final(SHA256_CTX *ctx, BYTE hash[])
   }
 
   // Append to the padding the total message's length in bits and transform.
-  ctx->bitlen += ctx->datalen * 8;
+  //ctx->bitlen += ctx->datalen * 8;
+  ctx->bitlen = bitlen;
   ctx->data[63] = ctx->bitlen;
   ctx->data[62] = ctx->bitlen >> 8;
   ctx->data[61] = ctx->bitlen >> 16;
@@ -179,14 +175,19 @@ void sha256_final(SHA256_CTX *ctx, BYTE hash[])
   }
 }
 
-void sha256(SHA256_CTX *ctx, const BYTE data[], size_t len, BYTE hash[], BYTE in_partial_digest[])
+void sha256(SHA256_CTX *ctx, const BYTE data[], size_t len, BYTE hash[], BYTE in_partial_digest[], u8 finalize, u32 bitlen)
 {
 
     sha256_init(ctx,in_partial_digest);
 
     sha256_main_loop(ctx, data, len);
 
-    sha256_final(ctx, hash);
+    if (finalize != 0) {
+        sha256_final(ctx, hash);
+    }
+    else{
+        memcpy(hash, ctx->state, SHA256_DIGEST_SIZE);
+    }
 
     
 }
@@ -213,8 +214,8 @@ void loop() {
   digitalWrite(PIN_LED, HIGH);
   
 	//Compute the sha256 of the received string
-	SHA256_CTX ctx;
-  sha256(&ctx, data.message, data.len, data.digest,data.in_partial_digest);  
+  SHA256_CTX ctx;
+  sha256(&ctx, data.message, data.len, data.digest,data.in_partial_digest,data.finalize, data.bitlen);
     
 	//Write the result on USB
   Serial.write((byte*) data.digest, SHA256_DIGEST_SIZE);

@@ -1,17 +1,5 @@
 #include "crypticintf.h"
 
-/*
- * Utility function: copy digest into state and reverse bytes in each (32-bit) entry of state
-*/
-/*
-static void revcpy32(__u32 state[], u8 digest[]){
-  int i;
-  memcpy(state, digest, SHA256_DIGEST_SIZE);
-  for(i=0; i < 8; i++)
-    state[i] = __builtin_bswap32(state[i]);
-}
-*/
-
 /**
  * cryptic_ctx_init: initialization function for a Crypto API context
  **/
@@ -166,17 +154,13 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
   struct cryptic_desc_ctx* ctx = shash_desc_ctx(desc);
   struct cryptic_sha256_ctx* crctx = crypto_tfm_ctx(&(desc->tfm->base));
   struct cryptpb* cryptdata = (struct cryptpb*) crctx->cryptic_data;
-  //int i;
   unsigned long irqflags;
   ssize_t status = 0;
 
   spin_lock_irqsave(&crctx->lock, irqflags);
- // if (ctx->count > CRYPTIC_BUF_LEN){
- //   /* In this case there is a partial digest to be copied to the device*/
   
   memcpy(cryptdata->in_partial_digest, ctx->state, SHA256_DIGEST_SIZE);
- 
- // }
+
   /* Now copy buffer and finalize */
   if (ctx->buflen){
     memcpy(cryptdata->message, ctx->buf, ctx->buflen);
@@ -186,8 +170,6 @@ static int cryptic_sha_final(struct shash_desc* desc, u8* out){
     /* SEND REQUEST THROUGH USB */
     status = cryptic_submit_request(ctx, cryptdata);
   }
-
-  //memcpy(cryptdata->digest, ctx->buf, SHA256_DIGEST_SIZE);
 
   /* Compute result using fallback if applicable*/
   if (ctx->use_fallback)
