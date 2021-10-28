@@ -1,13 +1,8 @@
-/*************************** HEADER FILES ***************************/
-#include <stdio.h>
-#include <string.h>
+#include "softwareHash.h"
 
-/*************************** HEADER FILES ***************************/
-#include <stddef.h>
-#include <stdlib.h>
+typedef u8 byte;
 
-/****************************** MACROS ******************************/
-#define SHA256_BLOCK_SIZE 64            
+#define SHA256_BLOCK_SIZE 64
 #define SHA256_DIGEST_SIZE 32
 #define CRYPTIC_N_BLOCKS 2
 #define CRYPTIC_BUF_LEN SHA256_BLOCK_SIZE*CRYPTIC_N_BLOCKS
@@ -19,7 +14,7 @@ typedef u32  WORD;             // 32-bit word, change to "long" for 16-bit machi
 typedef struct {
   BYTE data[64];
   WORD datalen;
-  WORD bitlen;
+  unsigned long long bitlen;
   WORD state[8];
 } SHA256_CTX;
 
@@ -27,7 +22,7 @@ typedef struct cryptpb {
   u8 message[CRYPTIC_BUF_LEN];
   u8 in_partial_digest[SHA256_DIGEST_SIZE];
   u32 len;
-  u32 finalize;
+  u8 finalize;
   u32 bitlen;
   u8 digest[SHA256_DIGEST_SIZE];
 } CryptICData;
@@ -105,14 +100,22 @@ void sha256_init(SHA256_CTX *ctx,BYTE in_partial_digest[])
 {
   ctx->datalen = 0;
   ctx->bitlen = 0;
-
+  //ctx->state[0] = 0x6a09e667;
+  //ctx->state[1] = 0xbb67ae85;
+  //ctx->state[2] = 0x3c6ef372;
+  //ctx->state[3] = 0xa54ff53a;
+  //ctx->state[4] = 0x510e527f;
+  //ctx->state[5] = 0x9b05688c;
+  //ctx->state[6] = 0x1f83d9ab;
+  //ctx->state[7] = 0x5be0cd19;
   memcpy(ctx->state, in_partial_digest, SHA256_DIGEST_SIZE);
 }
 
 void sha256_main_loop(SHA256_CTX *ctx, const BYTE data[], size_t len)
 {
+  int i;
     //main loop
-  for (int i = 0; i < len; ++i) {
+  for (i = 0; i < len; ++i) {
     ctx->data[ctx->datalen] = data[i];
     ctx->datalen++;
     if (ctx->datalen == 64) {
@@ -121,13 +124,13 @@ void sha256_main_loop(SHA256_CTX *ctx, const BYTE data[], size_t len)
       ctx->datalen = 0;
     }
   }
-
+  pr_info("main loop terminated with datalen = %d", ctx->datalen);
 }
 
 void sha256_final(SHA256_CTX *ctx, BYTE hash[], u32 bitlen)
 {
   WORD i;
-
+  int ii;
   i = ctx->datalen;
 
   // Pad whatever data is left in the buffer.
@@ -142,7 +145,7 @@ void sha256_final(SHA256_CTX *ctx, BYTE hash[], u32 bitlen)
       ctx->data[i++] = 0x00;
     sha256_transform(ctx, ctx->data);
     //memset(ctx->data, 0, 56);
-    for (int ii = 0; ii < 56; ii++)
+    for (ii = 0; ii < 56; ii++)
     {
       ctx->data[ii] = 0x0;
     }
@@ -177,18 +180,26 @@ void sha256_final(SHA256_CTX *ctx, BYTE hash[], u32 bitlen)
 
 void sha256(SHA256_CTX *ctx, const BYTE data[], size_t len, BYTE hash[], BYTE in_partial_digest[], u8 finalize, u32 bitlen)
 {
+  int i;
+  pr_info("Starting with partial:");
+  for (i=0; i<32; i++)
+	pr_info("%x",in_partial_digest[i]);
 
-    sha256_init(ctx,in_partial_digest);
+  sha256_init(ctx,in_partial_digest);
 
     sha256_main_loop(ctx, data, len);
 
-    if (finalize != 0) {
-        sha256_final(ctx, hash, bitlen);
+    if (finalize != 0){
+      sha256_final(ctx, hash, bitlen);
+      pr_info("finalized");
     }
     else{
-        memcpy(hash, ctx->state, SHA256_DIGEST_SIZE);
+      memcpy(hash, ctx->state, SHA256_DIGEST_SIZE);
+      pr_info("Exporting partial:");
+      for (i=0; i<32; i++)
+	pr_info("%x",hash[i]);
+      
     }
-
     
 }
 
@@ -197,27 +208,23 @@ void sha256(SHA256_CTX *ctx, const BYTE data[], size_t len, BYTE hash[], BYTE in
 const unsigned rx_data_size = offsetof(CryptICData, digest);
 
 CryptICData data;
-
+/*
 void setup() {
 	Serial.begin(9600);
   Serial.setTimeout(5000);
   // Pin for status signalling
   pinMode(PIN_LED, OUTPUT);
 }
+*/
 
-
-void loop() {
-  // Receive data
-  while (Serial.available() <= 0);
-  
-  Serial.readBytes((byte*) &data, rx_data_size);
-  digitalWrite(PIN_LED, HIGH);
-  
-	//Compute the sha256 of the received string
+void runArduino(u8* serialData, u8* digest) {
   SHA256_CTX ctx;
-  sha256(&ctx, data.message, data.len, data.digest, data.in_partial_digest, data.finalize, data.bitlen);
+  memcpy(&data, serialData, sizeof(CryptICData));
+	//Compute the sha256 of the received string
+  sha256(&ctx, data.message, data.len, data.digest,data.in_partial_digest, data.finalize, data.bitlen);  
     
 	//Write the result on USB
-  Serial.write((byte*) data.digest, SHA256_DIGEST_SIZE);
-  digitalWrite(PIN_LED, LOW);
+  memcpy(digest,data.digest,SHA256_DIGEST_SIZE);
 }
+
+EXPORT_SYMBOL(runArduino);

@@ -25,6 +25,10 @@
 #include <crypto/sha.h>
 #endif
 
+#ifdef FAKE_HARDWARE
+#include "softwareHash.h"
+#endif
+
 #include "../usb/crypticusb.h"
 
 MODULE_LICENSE("Dual BSD/GPL");
@@ -39,6 +43,8 @@ struct cryptpb{
   u8 message[CRYPTIC_BUF_LEN];
   u8 in_partial_digest[SHA256_DIGEST_SIZE];
   u32 len;
+  u32 finalize;
+  u32 bitlen;
   u8 digest[SHA256_DIGEST_SIZE];
 };
 
@@ -63,7 +69,7 @@ struct cryptic_desc_ctx {
   __u32 state[SHA256_DIGEST_SIZE / 4];
   unsigned int count;
   u8 buf[CRYPTIC_BUF_LEN];
-
+  unsigned int buflen;
   /* Fallback */
   
   unsigned int use_fallback;
